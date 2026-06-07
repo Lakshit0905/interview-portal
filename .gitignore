@@ -1,0 +1,12 @@
+node_modules
+.next
+out
+.env
+.env*.local
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+/prisma/dev.db
+
+# Local JSON data store (auto-seeds from lib/data/seeds.ts on first run)
+/data/*.json

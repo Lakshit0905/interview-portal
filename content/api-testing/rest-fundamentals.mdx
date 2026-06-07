@@ -1,0 +1,36 @@
+---
+title: "REST API Testing Fundamentals"
+description: "Status codes, idempotency, and the layered checks that make API suites fast and trustworthy."
+section: "REST"
+tags: ["rest", "http", "status-codes"]
+updatedAt: "2025-12-05T11:00:00.000Z"
+---
+
+## Test the contract, not just the happy path
+
+For each endpoint cover: success shape, validation errors (400), auth (401/403), not-found (404), and conflict/idempotency where relevant.
+
+## Idempotency matters
+
+`GET`, `PUT`, `DELETE` should be idempotent; `POST` usually isn't. A good interview answer: retrying a `PUT` must not create duplicates, so test that repeating it converges to the same state.
+
+## Status code quick map
+
+| Code | Meaning | Test angle |
+| --- | --- | --- |
+| 200 / 201 | OK / Created | body shape, Location header on 201 |
+| 400 | Bad request | each validation rule |
+| 401 / 403 | Unauthenticated / Unauthorized | missing vs. insufficient token |
+| 404 | Not found | unknown id, soft-deleted resource |
+| 409 | Conflict | duplicate create, version mismatch |
+
+## Layer your checks
+
+```ts
+const res = await request.post("/orders", { data: order });
+expect(res.status()).toBe(201);
+const body = await res.json();
+expect(body).toMatchObject({ id: expect.any(String), status: "pending" });
+```
+
+Schema-validate the body (Zod/JSON Schema) so a field renamed upstream fails loudly rather than silently passing.

@@ -1,0 +1,34 @@
+---
+title: "Design: A Test Data Service"
+description: "A central service that provisions isolated, realistic data so suites stay parallel-safe."
+section: "Design Questions"
+tags: ["test-data", "isolation", "service"]
+updatedAt: "2025-11-12T09:00:00.000Z"
+---
+
+## The problem
+
+Shared mutable test data causes cross-test interference and flaky parallel runs. A test data service hands each test its own isolated, disposable data.
+
+## Core capabilities
+
+- **Provision** entities on demand via API (`POST /test-data/users`).
+- **Isolation** — namespacing or per-run tenancy so runs never collide.
+- **Cleanup** — TTL-based teardown or explicit `DELETE` so the environment doesn't rot.
+- **Builders** — sensible defaults with overrides for edge cases.
+
+```text
+test ──POST /users {role:"admin"}──▶ Data Service ──▶ DB (namespaced)
+test ◀──── {id, credentials} ───────┘
+   (uses data, then run ends → TTL sweep removes it)
+```
+
+## Design questions you'll face
+
+- How do you guarantee isolation under high parallelism? (per-run namespace / schema)
+- How do you avoid orphaned data? (TTL + scheduled sweeper)
+- Realism vs. speed? (factories with defaults, seeded references)
+
+## Trade-offs
+
+Synchronous provisioning is simple but adds latency; async/pre-warmed pools are faster but more complex. Start synchronous, optimize when the suite demands it.

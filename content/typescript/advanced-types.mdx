@@ -1,0 +1,50 @@
+---
+title: "Advanced Types: Generics, Narrowing & Utility Types"
+description: "The type-system features that come up constantly in SDET tooling and interviews."
+section: "Advanced Concepts"
+tags: ["generics", "narrowing", "utility-types"]
+updatedAt: "2025-11-25T12:00:00.000Z"
+---
+
+## Generics carry type information through
+
+```ts
+function first<T>(arr: T[]): T | undefined {
+  return arr[0];
+}
+const n = first([1, 2, 3]); // number | undefined
+```
+
+Constrain them when you need shape guarantees:
+
+```ts
+function pluck<T, K extends keyof T>(obj: T, key: K): T[K] {
+  return obj[key];
+}
+```
+
+## Discriminated unions + narrowing
+
+The backbone of modeling API responses and test results:
+
+```ts
+type Result =
+  | { status: "pass"; durationMs: number }
+  | { status: "fail"; error: string };
+
+function report(r: Result) {
+  if (r.status === "fail") return r.error;  // narrowed to the fail variant
+  return `ok in ${r.durationMs}ms`;
+}
+```
+
+## Utility types you'll actually use
+
+- `Partial<T>` — patch objects (great for `update(id, patch)` repositories).
+- `Pick<T, K>` / `Omit<T, K>` — derive DTOs from a domain type.
+- `Record<K, V>` — typed maps like accent or status lookups.
+- `ReturnType<typeof fn>` — infer a function's result without restating it.
+
+## `unknown` vs `any`
+
+`any` disables checking; `unknown` forces you to narrow before use. In test utilities that parse external JSON, take `unknown` and validate (e.g. with Zod) — it's the safe default.

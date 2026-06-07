@@ -1,0 +1,35 @@
+---
+title: "Query Performance & Indexing"
+description: "Reading an execution plan, when indexes help, and the traps that make queries slow."
+section: "Queries"
+tags: ["indexes", "explain", "performance"]
+updatedAt: "2025-11-08T09:30:00.000Z"
+---
+
+## Indexes are a trade-off
+
+They speed reads and slow writes (every insert/update maintains them). Index the columns you filter, join, and sort on — not every column.
+
+## A function on a column kills the index
+
+```sql
+-- ❌ can't use an index on created_at
+WHERE DATE(created_at) = '2025-01-01'
+
+-- ✅ sargable: index-friendly range
+WHERE created_at >= '2025-01-01' AND created_at < '2025-01-02'
+```
+
+## Read the plan
+
+`EXPLAIN ANALYZE` shows whether you got a **Seq Scan** (full table) or an **Index Scan**. A seq scan on a large table behind a selective filter usually means a missing or unusable index.
+
+## Composite index order matters
+
+An index on `(status, created_at)` helps `WHERE status = ? ORDER BY created_at` but not a query filtering on `created_at` alone — left-most prefix rule.
+
+## Interview-ready checklist
+
+- N+1 queries in the app layer (fix with a join or batch).
+- `SELECT *` pulling unused columns over the wire.
+- Missing index on a foreign key used in joins.

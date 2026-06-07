@@ -1,0 +1,44 @@
+---
+title: "GitHub Actions for Test Pipelines"
+description: "Matrix builds, caching, sharded Playwright runs and artifact uploads that keep CI fast."
+section: "GitHub Actions"
+tags: ["github-actions", "ci", "matrix"]
+updatedAt: "2025-12-04T08:00:00.000Z"
+---
+
+## Anatomy
+
+A workflow has **events** (triggers), **jobs** (run on a runner, parallel by default), and **steps** (commands/actions). Jobs are isolated; share data via artifacts or outputs.
+
+```yaml
+name: e2e
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npx playwright test --shard=${{ matrix.shard }}/4
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: report-${{ matrix.shard }}, path: playwright-report }
+```
+
+## Speed levers
+
+- **Caching** `npm` and the Playwright browser binaries.
+- **Sharding** across matrix runners, then merge blob reports.
+- `if: always()` so reports upload even when tests fail.
+- Fail fast on lint/type-check in a cheap job before the expensive e2e job.
+
+## Common follow-ups
+
+- Secrets via `${{ secrets.X }}`, never echoed to logs.
+- Reusable workflows / composite actions to DRY up pipelines across repos.

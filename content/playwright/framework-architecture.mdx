@@ -1,0 +1,47 @@
+---
+title: "Designing a Playwright Framework"
+description: "Fixtures, the Page Object debate, config strategy, and the layering that scales to hundreds of specs."
+section: "Framework Design Notes"
+tags: ["fixtures", "page-object", "architecture"]
+updatedAt: "2025-12-02T09:00:00.000Z"
+---
+
+## Layering
+
+A maintainable suite separates four concerns:
+
+1. **Specs** — assertions and intent only. No selectors, no setup plumbing.
+2. **Page Objects / Components** — encapsulate locators and interactions.
+3. **Fixtures** — provide ready-to-use state (auth, seeded data, API clients).
+4. **Helpers / API layer** — set up state via API, not the UI.
+
+## Fixtures over `beforeEach`
+
+Custom fixtures compose cleanly and only run when a test actually uses them:
+
+```ts
+import { test as base } from "@playwright/test";
+
+export const test = base.extend<{ authedPage: Page }>({
+  authedPage: async ({ browser }, use) => {
+    const ctx = await browser.newContext({ storageState: "auth.json" });
+    const page = await ctx.newPage();
+    await use(page);
+    await ctx.close();
+  },
+});
+```
+
+## Authenticate once
+
+Use a global setup project that logs in and saves `storageState`, then every test reuses it. This removes per-test login — usually the biggest single speedup and de-flaker.
+
+## Seed via API, assert via UI
+
+Creating test data through the UI is slow and couples unrelated features. Hit the API to arrange state, then drive the UI only for the behavior under test. This keeps tests independent and parallel-safe.
+
+## Talking points for interviews
+
+- Trade-off of Page Objects vs. plain locator helpers: POs add structure but can become god-objects; component-scoped locators age better.
+- Sharding across CI runners with `--shard=1/4` and merging blob reports.
+- Tagging (`@smoke`, `@regression`) and `grep` to slice suites per pipeline stage.

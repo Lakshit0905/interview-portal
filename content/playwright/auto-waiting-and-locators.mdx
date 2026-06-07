@@ -1,0 +1,47 @@
+---
+title: "Auto-waiting & Resilient Locators"
+description: "Why Playwright's actionability checks kill most flakiness, and how to write locators that survive UI churn."
+section: "Concepts"
+tags: ["locators", "auto-wait", "flakiness"]
+updatedAt: "2025-11-18T10:00:00.000Z"
+---
+
+## Why Playwright rarely needs explicit waits
+
+Before every action, Playwright runs **actionability checks**: the element must be attached, visible, stable (not animating), enabled, and able to receive events. The action retries until those pass or the timeout expires. This is why `await page.getByRole("button").click()` is usually enough — no `sleep`, no manual `waitForSelector`.
+
+The failure mode to internalize: a flaky test almost always means you reached for a *brittle locator* or asserted on *state that hadn't settled*, not that you needed a longer sleep.
+
+## Locator priority
+
+Prefer user-facing, role-based locators over CSS/XPath:
+
+```ts
+// Good — survives refactors, mirrors how users find things
+page.getByRole("button", { name: "Submit order" });
+page.getByLabel("Email address");
+page.getByText("Order confirmed");
+
+// Last resort — couples the test to DOM structure
+page.locator(".btn-primary > span:nth-child(2)");
+```
+
+Add `data-testid` only when semantics genuinely don't exist:
+
+```ts
+page.getByTestId("cart-total");
+```
+
+## Web-first assertions retry
+
+`expect(locator).toBeVisible()` polls until it passes or times out — it is *not* a one-shot check. This is the single most important habit for stable suites:
+
+```ts
+await expect(page.getByText("Saved")).toBeVisible();   // retries
+expect(await page.getByText("Saved").isVisible()).toBe(true); // ❌ snapshot, races
+```
+
+## Common interview follow-ups
+
+- *How do you debug a flaky test?* Trace viewer (`--trace on`), then look for a non-retrying assertion or a locator matching multiple/zero elements.
+- *Strict mode?* A locator resolving to multiple elements throws by default — a feature, not a bug.

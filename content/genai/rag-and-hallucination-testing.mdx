@@ -1,0 +1,34 @@
+---
+title: "Testing RAG Systems & Hallucinations"
+description: "Where retrieval pipelines break, and how to catch answers that aren't grounded in the source."
+section: "RAG Testing"
+tags: ["rag", "retrieval", "hallucination", "faithfulness"]
+updatedAt: "2025-11-20T15:00:00.000Z"
+---
+
+## RAG has two failure surfaces
+
+1. **Retrieval** — did we fetch the right chunks? Measure with recall@k and precision on a labeled set of query→relevant-doc pairs. Bad retrieval guarantees bad answers regardless of the model.
+2. **Generation** — given the chunks, is the answer grounded in them?
+
+Test them separately so you know which half to fix.
+
+## Faithfulness / groundedness
+
+The key anti-hallucination metric: every claim in the answer should be supported by the retrieved context. An LLM-judge can flag unsupported sentences; deterministic checks can verify cited sources actually exist.
+
+## Hallucination test cases to include
+
+- **Out-of-scope questions** — the system should say "I don't know," not invent.
+- **Empty/weak retrieval** — when nothing relevant is found, it must not fabricate.
+- **Conflicting sources** — does it surface the conflict or silently pick one?
+
+## Practical harness
+
+```text
+query ──> retriever ──> [chunks] ──> generator ──> answer
+   │            │                         │
+   └ recall@k   └ precision               └ faithfulness vs. chunks
+```
+
+Log retrieved chunks alongside answers so failures are debuggable, and snapshot the eval scores per release.

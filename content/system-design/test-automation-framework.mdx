@@ -1,0 +1,48 @@
+---
+title: "Design: A Scalable Test Automation Framework"
+description: "How to architect a framework that stays fast and maintainable from 10 to 1000+ specs."
+section: "Architecture"
+tags: ["framework", "scalability", "architecture"]
+updatedAt: "2025-12-03T10:00:00.000Z"
+---
+
+## Requirements to clarify first
+
+In an interview, scope it: which layers (unit/API/E2E), target run time, parallelism, and who writes tests. State assumptions out loud.
+
+## Reference architecture
+
+```text
+        ┌──────────────┐
+        │   Specs       │  intent + assertions only
+        └──────┬───────┘
+               │
+        ┌──────▼───────┐
+        │ Page/Comp     │  locators + interactions
+        │ Objects       │
+        └──────┬───────┘
+               │
+   ┌───────────▼───────────┐
+   │ Fixtures (auth, data)  │  reusable state
+   └───────────┬───────────┘
+               │
+   ┌───────────▼───────────┐
+   │ API client / seeding   │  arrange via API, not UI
+   └───────────┬───────────┘
+               │
+        ┌──────▼───────┐
+        │ Reporting     │  blob → merged HTML, CI surface
+        └──────────────┘
+```
+
+## Scaling levers
+
+- **Parallel + sharded** across CI runners; merge reports.
+- **Auth once**, reuse `storageState`.
+- **Seed via API** to keep tests independent.
+- **Tagging** to slice smoke vs. regression per pipeline stage.
+- **Flake quarantine**: auto-retry once, tag persistently flaky tests, track a flake rate metric.
+
+## Trade-offs to discuss
+
+Page Objects vs. component helpers, shared fixtures vs. isolation, and where retries hide real bugs.

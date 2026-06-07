@@ -1,0 +1,29 @@
+---
+title: "Evaluating LLM-Powered Features"
+description: "How QA shifts when outputs are non-deterministic: eval sets, rubrics, and LLM-as-judge."
+section: "LLM Evaluation"
+tags: ["evals", "llm-as-judge", "non-determinism"]
+updatedAt: "2025-12-06T11:00:00.000Z"
+---
+
+## The core shift
+
+Traditional tests assert exact equality. LLM outputs vary run to run, so you assert on **properties** and **quality** rather than a single golden string.
+
+## Build an eval set
+
+A versioned dataset of inputs plus expected behavior (not always an exact answer). Treat it like a regression suite: every prompt or model change runs against it and you track score deltas over time.
+
+## Scoring approaches
+
+- **Deterministic checks** — does it contain required facts? valid JSON? within length? These are cheap and flake-free; use them first.
+- **Reference-based** — semantic similarity to a known-good answer.
+- **LLM-as-judge** — a model grades against a rubric. Powerful but needs its own calibration; pin the judge model and prompt, and spot-check against humans.
+
+## Metrics that matter
+
+Faithfulness (no invented facts), relevance, and task success rate. Report them per release so a regression is visible.
+
+## Interview framing
+
+Emphasize controlling non-determinism (temperature 0 for tests, fixed seeds where available), a curated eval set under version control, and a tiered strategy that uses cheap deterministic checks before expensive judged ones.

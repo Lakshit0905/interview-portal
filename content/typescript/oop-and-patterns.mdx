@@ -1,0 +1,31 @@
+---
+title: "OOP & Design Patterns in Test Code"
+description: "Where classes, composition and a few classic patterns earn their place in automation frameworks."
+section: "Design Patterns"
+tags: ["oop", "patterns", "composition"]
+updatedAt: "2025-10-30T08:00:00.000Z"
+---
+
+## Favor composition over deep inheritance
+
+Page Objects that inherit five levels deep become impossible to reason about. Prefer small composable components injected where needed.
+
+## Patterns that show up in frameworks
+
+- **Builder** — fluent test-data construction: `new UserBuilder().withRole("admin").build()`.
+- **Factory** — pick an API client or driver based on environment/config.
+- **Singleton (used sparingly)** — a shared config or logger; beware hidden global state in parallel runs.
+- **Adapter** — wrap a third-party reporter behind your own interface so you can swap it.
+
+```ts
+class UserBuilder {
+  private user: Partial<User> = { role: "member" };
+  withRole(role: Role) { this.user.role = role; return this; }
+  withEmail(email: string) { this.user.email = email; return this; }
+  build(): User { return { id: crypto.randomUUID(), ...this.user } as User; }
+}
+```
+
+## Access modifiers communicate intent
+
+`private` locators, `public` actions: the test only sees the behavior, never the selectors. That boundary is what keeps specs readable.

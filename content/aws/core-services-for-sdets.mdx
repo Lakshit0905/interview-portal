@@ -1,0 +1,29 @@
+---
+title: "AWS Core Services for Test Platforms"
+description: "EC2, S3 and Lambda from a test-infrastructure perspective — what they are and where they fit."
+section: "EC2"
+tags: ["ec2", "s3", "lambda"]
+updatedAt: "2025-11-29T10:00:00.000Z"
+---
+
+## EC2 — rent a server
+
+Virtual machines you fully control. For testing: self-hosted CI runners, long-lived load-generation hosts, or environments that need custom OS-level setup. You manage patching and scaling.
+
+## S3 — object storage
+
+Buckets of objects, accessed by key. For testing: store Playwright traces, videos, HTML reports, and large test-data fixtures. Cheap, durable, and easy to serve reports from. Mind bucket policies — public read is a common misconfiguration.
+
+## Lambda — run code without servers
+
+Event-driven functions, billed per invocation. For testing: synthetic monitors hitting prod endpoints on a schedule, webhook handlers that kick off pipelines, or lightweight test-data seeding. Watch cold starts and the execution time limit.
+
+## Choosing between them
+
+- Steady, stateful, full control → **EC2**.
+- Store/serve artifacts → **S3**.
+- Spiky, short, event-driven → **Lambda**.
+
+## Interview framing
+
+Tie each to a concrete SDET use case rather than reciting definitions: "We pushed Playwright traces to S3 and surfaced presigned links in the PR comment."

@@ -1,0 +1,182 @@
+# SDET Interview Prep Portal
+
+A production-quality, full-stack personal knowledge base for Senior SDET / QA Automation Engineer interviews. Store and organize notes, track coding problems, manage a question bank and STAR stories, run an interview pipeline, version resumes, and use AI helpers — all in one modern developer dashboard.
+
+Built with **Next.js 15 (App Router)**, **TypeScript**, **Tailwind CSS**, **shadcn/ui-style primitives**, **Framer Motion**, and **Server Actions**. Content lives as **MDX**; structured data is a **swappable JSON store today, Prisma/PostgreSQL tomorrow**.
+
+---
+
+## Features
+
+- **Dashboard** — total topics, coding problems, a weighted readiness score, topics completed, recent notes, and upcoming interviews.
+- **Knowledge Base** — MDX-backed notes across Playwright, TypeScript, API Testing, SQL, CI/CD, AWS, GenAI Testing, and System Design, grouped by section.
+- **Coding Tracker** — LeetCode-style log with difficulty, topic, complexity, solution, notes, revisit dates; cycle status (to do → solved → revisit), search and filter.
+- **Question Bank** — categorized questions with model answers, difficulty, and tags.
+- **Behavioral Stories** — STAR-format manager (Situation, Task, Action, Result).
+- **System Design** — reference architectures with ASCII diagrams, expected questions, and reveal-on-click sample answers.
+- **Interview Tracker** — a status board from Applied → Offer with date countdowns.
+- **Resume Manager** — multiple versions, target company, notes, and plain-text content for the analyzer.
+- **Global Search** — one query across notes, problems, questions, and stories.
+- **Command Palette** — `⌘/Ctrl + K` to search and jump anywhere; vim-style `g` shortcuts.
+- **AI Modules** — Question Generator, Mock Interview (scored, one question at a time), and Resume Analyzer (ATS score + skill gap). Each works offline with a deterministic fallback and upgrades to Claude when an API key is set.
+- **Dark-first** IDE/terminal aesthetic, fully responsive.
+
+---
+
+## Quick start
+
+```bash
+npm install
+cp .env.example .env      # optional: add ANTHROPIC_API_KEY to enable live AI
+npm run dev               # http://localhost:3000
+```
+
+The app runs with **zero infrastructure** — structured data is seeded into JSON files under `/data` on first run. To reset to seed data:
+
+```bash
+rm -rf data && npm run seed
+```
+
+---
+
+## Architecture
+
+```text
+app/
+  (dashboard)/            route group — sidebar + topbar shell
+    dashboard/            overview & readiness
+    knowledge/            [category] / [category]/[slug] (MDX)
+    coding/  questions/  behavioral/  system-design/
+    interviews/  resumes/  search/
+    ai/generator  ai/mock  ai/resume-analyzer
+  api/ai/chat/            optional Claude-backed chat route
+components/
+  ui/                     shadcn-style primitives (button, card, dialog, …)
+  layout/                 sidebar, topbar, command palette, theme toggle
+  dashboard/ coding/ interviews/ shared/   feature components
+content/                  MDX knowledge base (one folder per category)
+lib/
+  data/                   db facade, knowledge reader, search, stats
+  repositories/           Repository<T> contract + JSON driver
+  actions/                Server Actions (zod-validated, revalidatePath)
+  ai/                     Anthropic client + AI actions with offline fallbacks
+  constants.ts navigation.ts utils.ts
+prisma/schema.prisma      future-ready PostgreSQL schema
+types/index.ts            single source of truth for domain types
+```
+
+### The data layer is swappable by design
+
+Every structured collection implements a small `Repository<T>` interface (`list / get / create / update / remove`). Today the implementation is `JsonCollection` (a JSON file per collection). Callers only ever touch the `db` facade in `lib/data/db.ts`, so swapping the storage engine changes one file.
+
+---
+
+## MDX content
+
+Add a `.mdx` (or `.md`) file under `content/<category>/` with frontmatter:
+
+```mdx
+---
+title: "Auto-waiting & Resilient Locators"
+description: "One-line summary shown on cards and search."
+section: "Concepts"          # groups the note within its category
+tags: ["locators", "auto-wait"]
+updatedAt: "2025-11-18T10:00:00.000Z"
+---
+
+## Heading
+
+Markdown + GFM tables + fenced code with syntax highlighting all work.
+```
+
+Categories live in `lib/constants.ts` (`KNOWLEDGE_CATEGORIES`). The note appears automatically — no registration step. A category counts as "completed" on the dashboard once it has 2+ notes.
+
+---
+
+## AI features
+
+AI actions live in `lib/ai/actions.ts` and call the Anthropic Messages API through `lib/ai/client.ts`.
+
+- **No key set** → every feature still works via deterministic offline fallbacks (template question generator, structural answer scoring, keyword-overlap resume analysis). The UI shows an "offline mode" banner.
+- **`ANTHROPIC_API_KEY` set** → responses are generated by Claude. Configure the model with `AI_MODEL` (defaults to `claude-sonnet-4-20250514`).
+
+```bash
+# .env
+ANTHROPIC_API_KEY=sk-ant-...
+AI_MODEL=claude-sonnet-4-20250514
+```
+
+---
+
+## Migrating to PostgreSQL (Prisma)
+
+The schema in `prisma/schema.prisma` mirrors the domain types one-to-one.
+
+1. Provision Postgres and set `DATABASE_URL` in `.env`, plus `DATA_DRIVER=prisma`.
+2. Generate the client and push the schema:
+   ```bash
+   npm run db:generate
+   npm run db:push       # or: npm run db:migrate
+   ```
+3. Implement a Prisma-backed `Repository<T>` (same five methods) and swap the constructions in `lib/data/db.ts` behind `process.env.DATA_DRIVER === "prisma"`. No page or action code changes.
+
+---
+
+## Deployment
+
+### GitHub
+
+```bash
+git init
+git add .
+git commit -m "feat: SDET interview prep portal"
+git branch -M main
+git remote add origin https://github.com/<you>/<repo>.git
+git push -u origin main
+```
+
+### Vercel
+
+1. Import the repository at [vercel.com/new](https://vercel.com/new). Vercel auto-detects Next.js — no build config needed.
+2. Add environment variables in **Project → Settings → Environment Variables**:
+   - `ANTHROPIC_API_KEY` (optional, enables live AI)
+   - `AI_MODEL` (optional)
+   - `DATABASE_URL` + `DATA_DRIVER=prisma` (only if you've migrated to Postgres)
+3. Deploy. Every push to `main` ships automatically; PRs get preview URLs.
+
+> **Note on the JSON store and serverless:** the file-based `/data` store is ideal for local use and single-instance hosting. Serverless filesystems are ephemeral, so for a persistent multi-user deployment, complete the Prisma/Postgres migration above (or point the store at a durable volume).
+
+---
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `⌘/Ctrl + K` | Open command palette / search |
+| `G` then `D` | Go to Dashboard |
+| `G` then `K` | Go to Knowledge Base |
+| `G` then `C` | Go to Coding Tracker |
+| `G` then `Q` | Go to Question Bank |
+| `G` then `B` | Go to Behavioral Stories |
+| `G` then `S` | Go to System Design |
+| `G` then `I` | Go to Interview Tracker |
+| `G` then `R` | Go to Resume Manager |
+
+---
+
+## Scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the dev server |
+| `npm run build` | Production build |
+| `npm run start` | Serve the production build |
+| `npm run lint` | Lint |
+| `npm run seed` | Reset/write JSON seed data to `/data` |
+| `npm run db:generate` | Generate Prisma client |
+| `npm run db:push` | Push schema to the database |
+| `npm run db:migrate` | Create and run a migration |
+
+---
+
+Built as a personal knowledge management system for Senior SDET interview prep.

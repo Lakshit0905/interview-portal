@@ -1,0 +1,29 @@
+---
+title: "Contract Testing with Consumer-Driven Pacts"
+description: "How to catch breaking API changes between services without slow, flaky end-to-end environments."
+section: "Contract Testing"
+tags: ["pact", "contract", "microservices"]
+updatedAt: "2025-11-10T14:00:00.000Z"
+---
+
+## The problem it solves
+
+End-to-end tests across many services are slow and flaky, and they catch integration breaks *late*. Contract testing verifies the **interface** between a consumer and a provider in isolation.
+
+## Consumer-driven flow
+
+1. The **consumer** writes expectations ("when I GET /users/1, I expect this shape") which generate a **pact** file.
+2. The pact is published to a broker.
+3. The **provider** replays the pact against itself in CI and must satisfy it.
+
+Either side breaking the agreed shape fails fast, in unit-test time, with no shared environment.
+
+## When to reach for it
+
+- Many services owned by different teams.
+- You want deploy independence with a safety net.
+- You don't need full behavioral coverage at the boundary — just shape and semantics.
+
+## Interview framing
+
+Contrast it with schema validation (static) and full E2E (behavioral, slow). Contract testing sits in between: cheap, fast, versioned, and it pinpoints *which* side broke the agreement.

@@ -1,0 +1,126 @@
+// Future-ready PostgreSQL schema.
+//
+// The app ships with a file-based JSON driver (DATA_DRIVER=json) so it runs with
+// zero infrastructure. To migrate to Postgres:
+//   1. Set DATABASE_URL and DATA_DRIVER=prisma in .env
+//   2. Run `npm run db:generate && npm run db:push` (or `db:migrate`)
+//   3. Implement a Prisma-backed `Repository<T>` and swap it in lib/data/db.ts
+// These models intentionally mirror the types in types/index.ts one-to-one.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Difficulty {
+  Easy
+  Medium
+  Hard
+}
+
+enum CodingStatus {
+  todo
+  solved
+  revisit
+}
+
+enum InterviewStatus {
+  Applied
+  RecruiterScreen
+  TechnicalRound
+  FinalRound
+  Offer
+  Rejected
+}
+
+model CodingProblem {
+  id              String       @id @default(cuid())
+  name            String
+  difficulty      Difficulty
+  topic           String
+  status          CodingStatus @default(todo)
+  solution        String       @default("")
+  timeComplexity  String       @default("")
+  spaceComplexity String       @default("")
+  notes           String       @default("")
+  url             String?
+  revisitDate     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([topic])
+  @@index([difficulty])
+  @@index([status])
+}
+
+model InterviewQuestion {
+  id         String     @id @default(cuid())
+  question   String
+  category   String
+  answer     String     @default("")
+  difficulty Difficulty
+  tags       String[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([category])
+}
+
+model BehavioralStory {
+  id        String   @id @default(cuid())
+  title     String
+  theme     String
+  situation String   @default("")
+  task      String   @default("")
+  action    String   @default("")
+  result    String   @default("")
+  tags      String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([theme])
+}
+
+model SystemDesign {
+  id           String   @id @default(cuid())
+  title        String
+  summary      String   @default("")
+  diagram      String   @default("")
+  notes        String   @default("")
+  questions    String[]
+  sampleAnswer String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Resume {
+  id            String   @id @default(cuid())
+  label         String
+  version       String
+  targetCompany String?
+  fileName      String?
+  fileUrl       String?
+  notes         String   @default("")
+  content       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Interview {
+  id            String          @id @default(cuid())
+  company       String
+  position      String
+  recruiter     String?
+  interviewDate DateTime?
+  round         String          @default("")
+  status        InterviewStatus @default(Applied)
+  notes         String          @default("")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([status])
+}

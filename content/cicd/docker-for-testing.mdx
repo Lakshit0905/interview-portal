@@ -1,0 +1,41 @@
+---
+title: "Docker for Reproducible Test Environments"
+description: "Images vs containers, layer caching, and using containers to pin browser and DB versions."
+section: "Docker"
+tags: ["docker", "containers", "reproducibility"]
+updatedAt: "2025-10-22T13:00:00.000Z"
+---
+
+## Image vs container
+
+An **image** is the immutable blueprint; a **container** is a running instance. "Works on my machine" dies when the image pins the runtime, browsers, and OS deps.
+
+## Layer caching = fast builds
+
+Order your Dockerfile from least- to most-frequently-changed so the dependency layer is cached across code edits:
+
+```dockerfile
+FROM mcr.microsoft.com/playwright:v1.49.0-jammy
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci            # cached unless deps change
+COPY . .
+CMD ["npx", "playwright", "test"]
+```
+
+## Spin up dependencies for tests
+
+`docker compose` brings up a real Postgres/Redis for integration tests, then tears it down — no shared, drifting test DB.
+
+```yaml
+services:
+  db:
+    image: postgres:16
+    environment: { POSTGRES_PASSWORD: test }
+    ports: ["5432:5432"]
+```
+
+## Interview angles
+
+- Why the official Playwright image: browsers + system libs preinstalled, matching CI exactly.
+- Ephemeral containers per CI run remove cross-test state leakage.

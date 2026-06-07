@@ -1,0 +1,35 @@
+---
+title: "Serverless Hooks: Lambda + S3 in CI"
+description: "A practical pattern for synthetic checks and artifact handling using Lambda and S3 events."
+section: "Lambda"
+tags: ["lambda", "s3", "synthetic-monitoring"]
+updatedAt: "2025-10-15T09:00:00.000Z"
+---
+
+## Synthetic monitoring with scheduled Lambda
+
+An EventBridge schedule triggers a Lambda that runs a critical-path API check against production every few minutes and alarms on failure. It's a smoke test that never sleeps and costs almost nothing.
+
+## S3 event → processing Lambda
+
+Uploading a test report to S3 can emit an event that triggers a Lambda to parse results, post a summary to Slack, or update a dashboard — no polling.
+
+```text
+CI run ──> upload report.json ──> S3 (PutObject event)
+                                     │
+                                     ▼
+                              Lambda parses + notifies
+```
+
+## Presigned URLs for reports
+
+Generate a time-limited presigned S3 URL so reviewers can open a trace or report without making the bucket public:
+
+```text
+GET report ──> backend issues presigned URL (expires 1h) ──> reviewer opens
+```
+
+## Gotchas to mention
+
+- Lambda cold starts add latency to the first synthetic check.
+- IAM least-privilege: the function should only read/write the specific bucket prefix.
