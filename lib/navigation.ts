@@ -8,7 +8,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: "LayoutDashboard", shortcut: "G D", group: "Overview" },
-  { title: "Knowledge Base", href: "/knowledge", icon: "Library", shortcut: "G K", group: "Knowledge" },
+  { title: "Knowledge Hub", href: "/knowledge", icon: "Brain", shortcut: "G K", group: "Knowledge" },
   { title: "Learning Roadmap", href: "/roadmap", icon: "Map", shortcut: "G L", group: "Knowledge" },
   { title: "Video Learning Hub", href: "/videos", icon: "Video", shortcut: "G W", group: "Knowledge" },
   { title: "Coding Tracker", href: "/coding", icon: "Code2", shortcut: "G C", group: "Practice" },

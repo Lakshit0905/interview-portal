@@ -1,45 +1,85 @@
-import Link from "next/link";
-import { KNOWLEDGE_CATEGORIES, ACCENT_CLASS } from "@/lib/constants";
-import { getAllNotes } from "@/lib/data/knowledge";
+import { KnowledgeHubClient } from "@/components/knowledge/knowledge-hub-client";
 import { PageHeader } from "@/components/shared/page-header";
-import { Icon } from "@/components/shared/icon";
-import { cn } from "@/lib/utils";
-import { ArrowUpRight } from "lucide-react";
+import { HUB_SUBJECTS } from "@/lib/data/knowledge-hub";
+import { getNotesByCategory } from "@/lib/data/knowledge";
+import { db } from "@/lib/data/db";
+import type { SubjectStats } from "@/components/knowledge/subject-card";
+import { Brain } from "lucide-react";
 
-export default async function KnowledgePage() {
-  const notes = await getAllNotes();
-  const countFor = (slug: string) => notes.filter((n) => n.category === slug).length;
+async function buildStatsMap(): Promise<Record<string, SubjectStats>> {
+  const [allFlashcards, allQuestions] = await Promise.all([
+    db.flashcards.list(),
+    db.questions.list(),
+  ]);
+
+  const statsMap: Record<string, SubjectStats> = {};
+
+  for (const subject of HUB_SUBJECTS) {
+    const flashcards = subject.flashcardTopic
+      ? allFlashcards.filter((f) => f.topic === subject.flashcardTopic).length
+      : 0;
+
+    const questions = subject.questionCategory
+      ? allQuestions.filter((q) => q.category === subject.questionCategory).length
+      : 0;
+
+    let notes = 0;
+    if (subject.mdxSlug) {
+      const mdxNotes = await getNotesByCategory(subject.mdxSlug).catch(() => []);
+      notes = mdxNotes.length;
+    }
+
+    const topicCount = subject.topics.length;
+    const noteRatio  = notes > 0 ? Math.min(notes / topicCount, 1) * 60 : 0;
+    const cardRatio  = flashcards > 0 ? Math.min(flashcards / 20, 1) * 30 : 0;
+    const qRatio     = questions > 0 ? Math.min(questions / 5, 1) * 10 : 0;
+    const completion = Math.round(noteRatio + cardRatio + qRatio);
+
+    const subjectCards = subject.flashcardTopic
+      ? allFlashcards.filter((f) => f.topic === subject.flashcardTopic)
+      : [];
+    const hasActivity  = subjectCards.some((c) => c.reviewCount > 0);
+    const hasWeakCards = subjectCards.some((c) => c.streak === 0 && c.reviewCount > 2);
+
+    const revisionStatus: SubjectStats["revisionStatus"] =
+      !hasActivity && notes === 0 ? "new" :
+      hasWeakCards ? "due" : "ok";
+
+    const latestReview = subjectCards
+      .filter((c) => c.lastReviewedAt)
+      .sort((a, b) => new Date(b.lastReviewedAt!).getTime() - new Date(a.lastReviewedAt!).getTime())[0];
+
+    statsMap[subject.slug] = {
+      notes,
+      flashcards,
+      questions,
+      topics: topicCount,
+      completion,
+      revisionStatus,
+      lastRevised: latestReview?.lastReviewedAt
+        ? new Date(latestReview.lastReviewedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+        : undefined,
+      hasWeakAreas: hasWeakCards,
+    };
+  }
+
+  return statsMap;
+}
+
+export default async function KnowledgeHubPage() {
+  const statsMap = await buildStatsMap();
 
   return (
     <div>
-      <PageHeader title="Knowledge Base" description="Your structured notes across every interview domain. Content lives as MDX under /content and renders here." />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {KNOWLEDGE_CATEGORIES.map((cat) => {
-          const a = ACCENT_CLASS[cat.accent];
-          return (
-            <Link key={cat.slug} href={`/knowledge/${cat.slug}`}
-              className="card-glow group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/30">
-              <div className="flex items-start justify-between">
-                <div className={cn("flex h-11 w-11 items-center justify-center rounded-xl ring-1", a.bg, a.ring)}>
-                  <Icon name={cat.icon} className={cn("h-5 w-5", a.text)} />
-                </div>
-                <ArrowUpRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-              </div>
-              <h3 className="mt-4 font-semibold">{cat.title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{cat.description}</p>
-              <div className="mt-4 flex flex-wrap gap-1.5">
-                {cat.sections.slice(0, 4).map((sec) => (
-                  <span key={sec} className="rounded-md bg-muted px-2 py-0.5 font-mono text-[0.65rem] text-muted-foreground">{sec}</span>
-                ))}
-              </div>
-              <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
-                <span className="mono-label">{cat.sections.length} sections</span>
-                <span className="font-mono text-xs text-muted-foreground">{countFor(cat.slug)} notes</span>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+      <PageHeader
+        title="Knowledge Hub"
+        description="Your complete SDET interview OS — 30 subjects, structured topics, spaced-repetition flashcards, and interview Q&As in one place."
+      >
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/30">
+          <Brain className="h-5 w-5 text-primary" />
+        </div>
+      </PageHeader>
+      <KnowledgeHubClient statsMap={statsMap} />
     </div>
   );
 }

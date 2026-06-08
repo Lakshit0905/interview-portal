@@ -8,12 +8,18 @@
 // These models intentionally mirror the types in types/index.ts one-to-one.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  // Required for the `Unsupported("vector(...)")` embedding columns below —
+  // pgvector ships as a Postgres extension, not a native Prisma scalar.
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  // `CREATE EXTENSION IF NOT EXISTS vector;` must be run once per database
+  // (Prisma will declare it, but enabling it requires superuser on most hosts).
+  extensions = [vector]
 }
 
 enum Difficulty {
@@ -123,4 +129,470 @@ model Interview {
   updatedAt     DateTime        @updatedAt
 
   @@index([status])
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// AI-NATIVE LEARNING SYSTEM EXTENSION
+//
+// Adds: document ingestion, an AI knowledge graph, an Anki-style review engine,
+// an async AI job pipeline, polymorphic semantic search, and per-domain mastery
+// analytics — turning the portal into a full ingest → understand → generate →
+// review → measure loop.
+//
+// Ground rules followed throughout this section:
+//   • The six models above are NOT modified — same columns, same `cuid()` ids,
+//     same enums. Every link to them is established from the NEW side, either
+//     as a plain foreign key (new table → existing table) or, where Prisma
+//     requires a back-relation for referential integrity, an additive virtual
+//     relation array (e.g. `KnowledgeNode.flashcards`, the back-reference for
+//     `Flashcard.sourceNode`) that adds zero columns to the table it points
+//     back to — Prisma renders it as a pure join, the FK column itself lives
+//     on the new side.
+//   • All new models use UUID ids (`@default(uuid())`) and `createdAt` /
+//     `updatedAt` timestamps, and are scoped to the new `User` model so the
+//     whole subsystem is multi-tenant ready from day one (the original six
+//     models predate multi-tenancy and stay single-tenant, untouched).
+//   • Fast-moving operational state — job/document status, review grades —
+//     is modeled as "enum-like" `String` (TEXT) columns with a `@default`
+//     and a comment listing the allowed values, so new states (e.g. a new
+//     AI job type, a new SRS algorithm) ship without a destructive Postgres
+//     `ALTER TYPE` migration. Stable structural taxonomies (document kind,
+//     knowledge-graph node/edge types, search entity types, mastery levels)
+//     stay as native Prisma enums for type safety at the query layer.
+//   • `Json` fields map to Postgres `jsonb` and hold flexible AI output
+//     (extraction metadata, generation prompts/results, analytics snapshots).
+//   • `Unsupported("vector(1536)")` fields are pgvector embedding columns
+//     (1536 = OpenAI `text-embedding-3-small` dimension; adjust to match
+//     whatever embedding model is wired up). They're nullable so rows can
+//     be written before the embedding job completes, and excluded from the
+//     generated client until pgvector similarity ops are added via `$queryRaw`.
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Identity (new — required for "user-scoped / multi-tenant ready") ────────
+// The original six models were built single-tenant and are left exactly as-is
+// per the "do not redesign existing tables" constraint. Every table below is
+// scoped to this `User` so the AI subsystem is multi-tenant ready even while
+// the legacy tables remain implicitly single-tenant.
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents           Document[]
+  documentChunks      DocumentChunk[]
+  topicNodes          TopicNode[]
+  knowledgeNodes      KnowledgeNode[]
+  knowledgeEdges      KnowledgeEdge[]
+  flashcardReviews    FlashcardReview[]
+  flashcardReviewLogs FlashcardReviewLog[]
+  aiJobs              AiJob[]
+  searchIndexEntries  SearchIndex[]
+  analytics           UserAnalytics[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A. Document Ingestion Layer — raw uploads in, clean text chunks out.
+// `documents` holds the source artifact (PDF / image / video / pasted text);
+// `document_chunks` holds the processed, embeddable slices an AI job produces
+// from it. This is the entry point of the documents → chunks → knowledge nodes
+// → flashcards chain the spec calls for.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum DocumentKind {
+  pdf
+  image
+  video
+  text
+  url
+}
+
+model Document {
+  id        String       @id @default(uuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      DocumentKind
+  title     String
+  fileName  String?
+  fileUrl   String?
+  mimeType  String?
+  sizeBytes Int?
+  sourceUrl String? // for kind = url, or provenance of an uploaded file
+
+  /// "pending" | "processing" | "completed" | "failed" — coarse ingestion state;
+  /// fine-grained stage (extracting/chunking/embedding) lives on the linked AiJob rows.
+  status String  @default("pending")
+  error  String?
+
+  rawText  String? // full extracted text, once ingestion completes
+  metadata Json? // page count, duration, OCR confidence, AI-detected topics, ...
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chunks DocumentChunk[]
+  aiJobs AiJob[]
+
+  @@index([userId, status])
+  @@index([kind])
+}
+
+model DocumentChunk {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  ordinal    Int // 0-based position within the parent document
+  content    String
+  tokenCount Int?
+  pageNumber Int?
+
+  embedding Unsupported("vector(1536)")?
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  knowledgeNodes KnowledgeNode[]
+  searchIndex    SearchIndex[]
+
+  @@unique([documentId, ordinal])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B. AI Knowledge Layer — atomic concepts extracted from chunks, wired into a
+// graph (`knowledge_edges`) and a topic hierarchy (`topic_nodes`, parent/child).
+// `topic_nodes` is additive: it gives the flat `FLASHCARD_TOPICS` strings on
+// the existing `Flashcard`/`InterviewQuestion`/etc. an optional tree structure
+// to sit on top of, without changing how those tables store `topic`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum KnowledgeNodeType {
+  concept
+  skill
+  tool
+  pattern
+  question
+  definition
+}
+
+enum KnowledgeEdgeRelation {
+  prerequisite_of
+  related_to
+  part_of
+  contrasts_with
+  example_of
+  generalizes
+}
+
+model TopicNode {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  parentId String?
+  parent   TopicNode?  @relation("TopicHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children TopicNode[] @relation("TopicHierarchy")
+
+  label    String // e.g. "Playwright" → "Locators" → "Auto-waiting"
+  slug     String
+  depth    Int    @default(0)
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  knowledgeNodes KnowledgeNode[]
+  analytics      UserAnalytics[]
+
+  @@unique([userId, slug])
+  @@index([parentId])
+}
+
+model KnowledgeNode {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    KnowledgeNodeType @default(concept)
+  label   String
+  summary String?
+
+  topicNodeId String?
+  topicNode   TopicNode? @relation(fields: [topicNodeId], references: [id], onDelete: SetNull)
+
+  sourceChunkId String?
+  sourceChunk   DocumentChunk? @relation(fields: [sourceChunkId], references: [id], onDelete: SetNull)
+
+  embedding Unsupported("vector(1536)")?
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  outgoingEdges KnowledgeEdge[] @relation("EdgeFrom")
+  incomingEdges KnowledgeEdge[] @relation("EdgeTo")
+
+  // Closes the documents → chunks → knowledge nodes → flashcards chain. The FK
+  // column (`sourceNodeId`) lives on `Flashcard`, added below as part of this
+  // extension — see the note on the `Flashcard` model for why that's additive,
+  // not a redesign.
+  flashcards Flashcard[]
+
+  @@index([userId])
+  @@index([topicNodeId])
+  @@index([type])
+}
+
+model KnowledgeEdge {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fromNodeId String
+  fromNode   KnowledgeNode @relation("EdgeFrom", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNodeId   String
+  toNode     KnowledgeNode @relation("EdgeTo", fields: [toNodeId], references: [id], onDelete: Cascade)
+
+  relation KnowledgeEdgeRelation @default(related_to)
+  weight   Float?                @default(1)
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@unique([fromNodeId, toNodeId, relation])
+  @@index([userId])
+  @@index([toNodeId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C. Flashcard Intelligence Layer — Anki-style spaced repetition on top of the
+// existing `Flashcard` model (which only carries the lightweight Leitner
+// `streak` / `dueAt` fields the current review UI uses).
+//
+// `Flashcard` itself is added here to close a pre-existing gap: it already
+// exists as a real feature (lib/data, /flashcards UI, types/index.ts) but was
+// never backported into this Prisma file (which predates it and still only
+// mirrors the original six models). It is written to mirror `types/index.ts`
+// exactly, plus one additive nullable FK (`sourceNodeId`) that traces a
+// generated card back to the knowledge node it came from — the connective
+// tissue the spec asks for, expressed as a new column on a newly-declared
+// model rather than a change to a pre-existing one.
+//
+// `flashcard_reviews` / `flashcard_review_logs` are deliberately separate from
+// `Flashcard.streak/dueAt`: they become the system of record for the richer
+// SM-2-style scheduler (ease factor, lapses, four-way grading) once the AI
+// system is live, while the existing simple scheduler keeps working unmodified.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum FlashcardSource {
+  manual
+  note
+  video
+  question
+  import
+}
+
+model Flashcard {
+  id             String          @id @default(uuid())
+  front          String
+  back           String
+  topic          String // mirrors FlashcardTopic from types/index.ts (kept as String — see TopicNode for the optional hierarchy)
+  subtopic       String?
+  difficulty     Difficulty
+  tags           String[]
+  sourceSnippet  String?
+  source         FlashcardSource @default(manual)
+  sourceRef      String?
+  streak         Int             @default(0)
+  reviewCount    Int             @default(0)
+  lastReviewedAt DateTime?
+  dueAt          DateTime        @default(now())
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  // Additive traceability FK — see module comment above for why this lives here.
+  sourceNodeId String?
+  sourceNode   KnowledgeNode? @relation(fields: [sourceNodeId], references: [id], onDelete: SetNull)
+
+  reviews FlashcardReview[]
+
+  @@index([topic])
+  @@index([dueAt])
+  @@index([sourceNodeId])
+}
+
+model FlashcardReview {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flashcardId String
+  flashcard   Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+
+  // SM-2-style scheduler state (independent of `Flashcard.streak`/`dueAt`).
+  easeFactor   Float    @default(2.5)
+  intervalDays Int      @default(0)
+  repetitions  Int      @default(0)
+  lapses       Int      @default(0)
+  dueAt        DateTime @default(now())
+  suspended    Boolean  @default(false)
+  metadata     Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  logs FlashcardReviewLog[]
+
+  @@unique([userId, flashcardId])
+  @@index([userId, dueAt])
+}
+
+model FlashcardReviewLog {
+  id          String          @id @default(uuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewId    String
+  review      FlashcardReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  flashcardId String
+
+  /// "again" | "hard" | "good" | "easy" — four-way SM-2 grade (kept as TEXT so
+  /// a future scheduler swap, e.g. to FSRS, doesn't require an enum migration).
+  grade          String @default("good")
+  responseMs     Int?
+  easeBefore     Float?
+  easeAfter      Float?
+  intervalBefore Int?
+  intervalAfter  Int?
+
+  reviewedAt DateTime @default(now())
+
+  @@index([flashcardId, reviewedAt])
+  @@index([userId, reviewedAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// D. AI Processing System — the async job queue behind every AI feature
+// (flashcard generation, summarization, OCR, resume analysis, embeddings, ...).
+// One row per unit of work; `input`/`output` carry the prompt/result payloads
+// so the pipeline stays observable and replayable.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AiJob {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// "flashcard_generation" | "summarization" | "ocr" | "resume_analysis"
+  /// | "embedding" | "topic_extraction" | "transcription" — open-ended by
+  /// design, new job types ship without an `ALTER TYPE` migration.
+  type String
+
+  /// "queued" | "running" | "succeeded" | "failed" | "cancelled"
+  status String @default("queued")
+
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  input       Json?
+  output      Json?
+  error       String?
+  attempts    Int       @default(0)
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([type, status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// E. Search & Embeddings Layer — one semantic index spanning every content
+// type the spec lists (notes, flashcards, coding problems, interview
+// questions, behavioral stories) plus the new document chunks / knowledge
+// nodes. Deliberately polymorphic (`entityType` + `entityId`) rather than six
+// nullable FK columns: it keeps this table — the one expected to scale past
+// 100K rows — decoupled from the existing tables' schemas entirely (zero FK
+// churn as content types are added), at the cost of validating `entityId`
+// against `entityType` at the application layer instead of the database.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum SearchEntityType {
+  note
+  flashcard
+  coding_problem
+  interview_question
+  behavioral_story
+  document_chunk
+  knowledge_node
+}
+
+model SearchIndex {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  entityType SearchEntityType
+  entityId   String // id of the source row — validated against `entityType` in the app layer
+
+  // Direct FK for the one entity type that's native to this extension; every
+  // other type is reached purely through (entityType, entityId).
+  documentChunkId String?
+  documentChunk   DocumentChunk? @relation(fields: [documentChunkId], references: [id], onDelete: Cascade)
+
+  title     String
+  content   String
+  embedding Unsupported("vector(1536)")?
+  metadata  Json?
+
+  indexedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([entityType, entityId])
+  @@index([userId, entityType])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// F. Analytics Layer — per-domain mastery and interview readiness, the signal
+// that drives the dashboard's readiness gauge once the AI loop is feeding it
+// real review history instead of static seed data.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum MasteryLevel {
+  unseen
+  learning
+  familiar
+  proficient
+  mastered
+}
+
+model UserAnalytics {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  domain      String // e.g. "Playwright", "SQL", "AWS" — mirrors FlashcardTopic / TopicNode.label
+  topicNodeId String?
+  topicNode   TopicNode? @relation(fields: [topicNodeId], references: [id], onDelete: SetNull)
+
+  masteryLevel   MasteryLevel @default(unseen)
+  masteryScore   Float        @default(0) // normalized 0–1
+  readinessScore Float        @default(0) // 0–100 blended signal: accuracy + recency + coverage
+
+  cardsTotal     Int       @default(0)
+  cardsMastered  Int       @default(0)
+  reviewStreak   Int       @default(0)
+  lastReviewedAt DateTime?
+  metadata       Json?
+
+  computedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, domain])
+  @@index([userId])
 }

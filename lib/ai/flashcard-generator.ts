@@ -36,7 +36,12 @@ function sentencesOf(text: string): string[] {
     .replace(/\s+/g, " ")
     .split(/(?<=[.!?])\s+/)
     .map((s) => s.trim().replace(/^[-*•\d.)]+\s*/, ""))
-    .filter((s) => s.length > 30 && s.length < 400);
+    .filter((s) => s.length > 30 && s.length < 400)
+    // A sentence that's itself a question (e.g. a coding-problem statement
+    // lifted from a "Java interview questions" PDF) makes a useless "answer" —
+    // the offline heuristic would just wrap a question around a question with
+    // nothing explanatory in it. Leave those for the question side only.
+    .filter((s) => !/\?\s*$/.test(s));
 }
 
 function normalize(s: string): string {
