@@ -1,16 +1,8 @@
 import { db } from "@/lib/data/db";
-import { PageHeader } from "@/components/shared/page-header";
-import { InterviewBoard } from "@/components/interviews/interview-board";
+import { getInterviewInsights } from "@/lib/data/interview-insights";
+import { InterviewTrackerDashboard } from "@/components/interviews/interview-tracker-dashboard";
 
 export default async function InterviewsPage() {
-  const interviews = await db.interviews.list();
-  return (
-    <div>
-      <PageHeader
-        title="Interview Tracker"
-        description="Your pipeline as a board — drag-free status moves from Applied through Offer, with date countdowns."
-      />
-      <InterviewBoard initial={interviews} />
-    </div>
-  );
+  const [interviews, insights] = await Promise.all([db.interviews.list(), getInterviewInsights()]);
+  return <InterviewTrackerDashboard initial={interviews} insights={insights} />;
 }

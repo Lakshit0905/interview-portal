@@ -92,11 +92,150 @@ export interface Interview {
   id: string;
   company: string;
   position: string;
+  location?: string;
+  salaryRange?: string;
+  interviewType?: string; // e.g. "Onsite", "Virtual", "Phone Screen", "Technical"
   recruiter?: string;
   interviewDate?: string | null; // ISO
   round: string;
+  roundsCompleted?: number;
+  roundsTotal?: number;
+  readinessScore?: number; // 0–100
   status: InterviewStatus;
   notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Flashcards (spaced repetition) ──────────────────────────────────────────
+export const FLASHCARD_TOPICS = [
+  "Playwright", "TypeScript", "SQL", "API", "AWS",
+  "Docker", "CI/CD", "System Design", "Behavioral", "GenAI",
+] as const;
+export type FlashcardTopic = (typeof FLASHCARD_TOPICS)[number];
+
+/** Days until next review at each step of the schedule, indexed by streak (0-based). */
+export const REVIEW_INTERVALS_DAYS = [1, 3, 7, 14, 30] as const;
+
+export type FlashcardSource = "manual" | "note" | "video" | "question";
+
+export interface Flashcard {
+  id: string;
+  front: string;
+  back: string;
+  topic: FlashcardTopic;
+  difficulty: Difficulty;
+  source: FlashcardSource;
+  sourceRef?: string; // e.g. note slug, video id, question id
+  streak: number; // index into REVIEW_INTERVALS_DAYS — how many correct reviews in a row
+  reviewCount: number;
+  lastReviewedAt: string | null; // ISO
+  dueAt: string; // ISO — when this card is next due
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FlashcardGrade = "again" | "good";
+
+// ── Learning Roadmap ─────────────────────────────────────────────────────────
+export interface RoadmapTopic {
+  id: string;
+  title: string;
+  done: boolean;
+  estimatedHours: number;
+}
+
+export interface LearningPath {
+  id: string;
+  title: string;
+  description: string;
+  accent: keyof typeof ACCENTS;
+  icon: string; // lucide icon name
+  topics: RoadmapTopic[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Company Preparation Hub ──────────────────────────────────────────────────
+export interface CompanyRound {
+  name: string;
+  description: string;
+}
+
+export interface CompanyFAQ {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+export interface CompanyChecklistItem {
+  id: string;
+  label: string;
+  done: boolean;
+}
+
+export interface CompanyPrep {
+  id: string;
+  slug: string;
+  name: string;
+  industry: string;
+  process: CompanyRound[];
+  focusAreas: string[];
+  faqs: CompanyFAQ[];
+  notes: string;
+  experiences: string;
+  checklist: CompanyChecklistItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Video Learning Hub ───────────────────────────────────────────────────────
+export interface VideoConcept {
+  id: string;
+  term: string;
+  explanation: string;
+}
+
+export interface VideoQA {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+export interface VideoFlashcard {
+  id: string;
+  front: string;
+  back: string;
+}
+
+export interface VideoMCQ {
+  id: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
+export type VideoStatus = "ready" | "processing" | "failed";
+
+export interface VideoLesson {
+  id: string;
+  url: string;
+  title: string;
+  channel: string;
+  topic: string;
+  durationMinutes: number;
+  transcript: string;
+  summary: string;
+  notes: string; // long-form mdx-ish notes
+  concepts: VideoConcept[];
+  questions: VideoQA[];
+  flashcards: VideoFlashcard[];
+  revisionNotes: string; // markdown bullet list
+  cheatSheet: string; // markdown table/snippet
+  mcqs: VideoMCQ[];
+  status: VideoStatus;
+  generatedByAi: boolean;
   createdAt: string;
   updatedAt: string;
 }

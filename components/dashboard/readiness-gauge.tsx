@@ -2,8 +2,12 @@
 import { motion } from "framer-motion";
 import { Progress } from "@/components/ui/progress";
 
-export function ReadinessGauge({ score, breakdown }: {
-  score: number; breakdown: { label: string; value: number; weight: number }[];
+export function ReadinessGauge({ score, breakdown, title = "Interview Readiness", indicatorClassName }: {
+  score: number;
+  breakdown: { label: string; value: number; weight?: number }[];
+  title?: string;
+  /** Optional gradient fill applied to each category's progress bar (e.g. "bg-gradient-to-r from-signal-blue to-signal-violet"). */
+  indicatorClassName?: string;
 }) {
   const R = 52, C = 2 * Math.PI * R;
   const tier = score >= 75 ? "Interview ready" : score >= 50 ? "On track" : "Building up";
@@ -28,7 +32,7 @@ export function ReadinessGauge({ score, breakdown }: {
         </div>
         <div className="flex-1 w-full">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm font-medium">Interview Readiness</span>
+            <span className="text-sm font-medium">{title}</span>
             <span className="rounded-md bg-primary/15 px-2 py-0.5 font-mono text-xs text-primary">{tier}</span>
           </div>
           <div className="space-y-3">
@@ -38,7 +42,7 @@ export function ReadinessGauge({ score, breakdown }: {
                   <span className="text-muted-foreground">{b.label}</span>
                   <span className="font-mono tabular-nums">{Math.round(b.value * 100)}%</span>
                 </div>
-                <Progress value={Math.round(b.value * 100)} className="h-1.5" />
+                <Progress value={Math.round(b.value * 100)} className="h-1.5" indicatorClassName={indicatorClassName} />
               </div>
             ))}
           </div>

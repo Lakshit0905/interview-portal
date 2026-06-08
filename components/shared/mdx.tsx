@@ -1,16 +1,16 @@
-import { MDXRemote } from "next-mdx-remote/rsc";
+import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import rehypeSlug from "rehype-slug";
 import Link from "next/link";
 
 const components = {
-  a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
-    const href = props.href ?? "#";
-    const ext = href.startsWith("http");
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
+    const url = href ?? "#";
+    const ext = url.startsWith("http");
     return ext
-      ? <a {...props} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80" />
-      : <Link href={href} className="text-primary underline underline-offset-4 hover:text-primary/80">{props.children}</Link>;
+      ? <a href={url} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-4 hover:text-primary/80">{children}</a>
+      : <Link href={url} className="text-primary underline underline-offset-4 hover:text-primary/80">{children}</Link>;
   },
 };
 
@@ -25,11 +25,13 @@ export function Mdx({ source }: { source: string }) {
       prose-pre:p-0 prose-pre:bg-transparent prose-strong:text-foreground
       prose-li:text-foreground/90 prose-blockquote:border-l-primary prose-blockquote:text-muted-foreground
       prose-table:text-sm prose-th:text-left prose-th:font-mono prose-th:text-xs prose-th:uppercase prose-th:tracking-wider">
-      <MDXRemote
-        source={source}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeSlug, rehypeHighlight]}
         components={components}
-        options={{ mdxOptions: { remarkPlugins: [remarkGfm], rehypePlugins: [rehypeSlug, rehypeHighlight] } }}
-      />
+      >
+        {source}
+      </ReactMarkdown>
     </article>
   );
 }

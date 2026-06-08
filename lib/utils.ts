@@ -43,3 +43,23 @@ export function daysUntil(iso?: string | null): number | null {
   const diff = new Date(iso).getTime() - Date.now();
   return Math.ceil(diff / 86400000);
 }
+
+/** Calendar-day difference between an ISO date and today (ignores time-of-day). */
+export function calendarDaysUntil(iso?: string | null): number | null {
+  if (!iso) return null;
+  const startOfDay = (d: Date) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); };
+  return Math.round((startOfDay(new Date(iso)) - startOfDay(new Date())) / 86400000);
+}
+
+/** Deterministic 1–2 letter initials for a company/org name, used for avatar badges. */
+export function companyInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+/** Splits a free-form notes string into discrete entries (separated by blank lines). */
+export function splitNotes(notes: string): string[] {
+  return notes.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
+}

@@ -2,11 +2,12 @@ import "server-only";
 import { JsonCollection } from "@/lib/repositories/json-store";
 import type {
   CodingProblem, InterviewQuestion, BehavioralStory,
-  SystemDesign, Resume, Interview,
+  SystemDesign, Resume, Interview, Flashcard, LearningPath, CompanyPrep, VideoLesson,
 } from "@/types";
 import {
   codingSeed, questionSeed, behavioralSeed,
-  systemDesignSeed, resumeSeed, interviewSeed,
+  systemDesignSeed, resumeSeed, interviewSeed, flashcardSeed, roadmapSeed, companyPrepSeed,
+  videoLessonSeed,
 } from "./seeds";
 
 /**
@@ -22,4 +23,8 @@ export const db = {
   systemDesign: new JsonCollection<SystemDesign>("system-design", systemDesignSeed),
   resumes: new JsonCollection<Resume>("resumes", resumeSeed),
   interviews: new JsonCollection<Interview>("interviews", interviewSeed),
+  flashcards: new JsonCollection<Flashcard>("flashcards", flashcardSeed),
+  roadmap: new JsonCollection<LearningPath>("roadmap", roadmapSeed),
+  companyPrep: new JsonCollection<CompanyPrep>("company-prep", companyPrepSeed),
+  videos: new JsonCollection<VideoLesson>("video-lessons", videoLessonSeed),
 };

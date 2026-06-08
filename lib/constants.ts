@@ -49,13 +49,15 @@ export const ACCENT_CLASS: Record<string, { text: string; bg: string; ring: stri
   red:    { text: "text-signal-red",    bg: "bg-signal-red/10",    ring: "ring-signal-red/30",    dot: "bg-signal-red" },
   blue:   { text: "text-signal-blue",   bg: "bg-signal-blue/10",   ring: "ring-signal-blue/30",   dot: "bg-signal-blue" },
   violet: { text: "text-signal-violet", bg: "bg-signal-violet/10", ring: "ring-signal-violet/30", dot: "bg-signal-violet" },
+  slate:  { text: "text-signal-slate",  bg: "bg-signal-slate/10",  ring: "ring-signal-slate/30",  dot: "bg-signal-slate" },
 };
 
 export const DIFFICULTY_ACCENT: Record<string, string> = {
   Easy: "green", Medium: "amber", Hard: "red",
 };
 
+// Canonical pipeline status → accent color (gray / blue / purple / orange / green / red).
 export const STATUS_ACCENT: Record<string, string> = {
-  Applied: "blue", "Recruiter Screen": "violet", "Technical Round": "amber",
-  "Final Round": "green", Offer: "green", Rejected: "red",
+  Applied: "slate", "Recruiter Screen": "blue", "Technical Round": "violet",
+  "Final Round": "amber", Offer: "green", Rejected: "red",
 };

@@ -7,9 +7,15 @@ import { INTERVIEW_STATUSES } from "@/types";
 const schema = z.object({
   company: z.string().min(1),
   position: z.string().min(1),
+  location: z.string().optional(),
+  salaryRange: z.string().optional(),
+  interviewType: z.string().optional(),
   recruiter: z.string().optional(),
   interviewDate: z.string().nullable().optional(),
   round: z.string().default(""),
+  roundsCompleted: z.number().int().min(0).optional(),
+  roundsTotal: z.number().int().min(0).optional(),
+  readinessScore: z.number().int().min(0).max(100).optional(),
   status: z.enum(INTERVIEW_STATUSES),
   notes: z.string().default(""),
 });

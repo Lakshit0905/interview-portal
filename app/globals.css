@@ -29,6 +29,7 @@
     --signal-red: 0 72% 51%;
     --signal-blue: 217 91% 60%;
     --signal-violet: 262 83% 65%;
+    --signal-slate: 215 16% 47%;
     --radius: 0.75rem;
   }
 
@@ -58,6 +59,7 @@
     --signal-red: 0 80% 64%;
     --signal-blue: 210 95% 66%;
     --signal-violet: 263 88% 72%;
+    --signal-slate: 215 16% 65%;
   }
 }
 
@@ -98,6 +100,7 @@
     content: "";
     position: absolute;
     inset: 0;
+    pointer-events: none;
     border-radius: inherit;
     padding: 1px;
     background: linear-gradient(135deg, hsl(var(--primary) / 0.5), transparent 40%);

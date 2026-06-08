@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 const config: Config = {
   darkMode: ["class"],
@@ -33,6 +34,7 @@ const config: Config = {
           red: "hsl(var(--signal-red))",
           blue: "hsl(var(--signal-blue))",
           violet: "hsl(var(--signal-violet))",
+          slate: "hsl(var(--signal-slate))",
         },
       },
       borderRadius: {
@@ -54,6 +56,6 @@ const config: Config = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 };
 export default config;
