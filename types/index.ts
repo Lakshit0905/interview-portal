@@ -117,16 +117,19 @@ export type FlashcardTopic = (typeof FLASHCARD_TOPICS)[number];
 /** Days until next review at each step of the schedule, indexed by streak (0-based). */
 export const REVIEW_INTERVALS_DAYS = [1, 3, 7, 14, 30] as const;
 
-export type FlashcardSource = "manual" | "note" | "video" | "question";
+export type FlashcardSource = "manual" | "note" | "video" | "question" | "import";
 
 export interface Flashcard {
   id: string;
   front: string;
   back: string;
   topic: FlashcardTopic;
+  subtopic?: string; // free-form refinement, e.g. AI-detected subtopic within `topic`
   difficulty: Difficulty;
+  tags?: string[];
+  sourceSnippet?: string; // excerpt of the source material the card was derived from
   source: FlashcardSource;
-  sourceRef?: string; // e.g. note slug, video id, question id
+  sourceRef?: string; // e.g. note slug, video id, question id, uploaded document name
   streak: number; // index into REVIEW_INTERVALS_DAYS — how many correct reviews in a row
   reviewCount: number;
   lastReviewedAt: string | null; // ISO
@@ -136,6 +139,32 @@ export interface Flashcard {
 }
 
 export type FlashcardGrade = "again" | "good";
+
+// ── AI Flashcard Generator (document → structured deck) ─────────────────────
+export interface GeneratedFlashcard {
+  topic: FlashcardTopic;
+  subtopic: string;
+  question: string;
+  answer: string;
+  difficulty: Difficulty;
+  tags: string[];
+  sourceSnippet: string;
+}
+
+export interface GeneratedTopicGroup {
+  topic: string;
+  subtopics: string[];
+}
+
+export interface FlashcardGenerationResult {
+  enabled: boolean;
+  summary: string;
+  topics: GeneratedTopicGroup[];
+  insights: string[];
+  weakAreas: string[];
+  revisionPlan: string[];
+  cards: GeneratedFlashcard[];
+}
 
 // ── Learning Roadmap ─────────────────────────────────────────────────────────
 export interface RoadmapTopic {

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Plus } from "lucide-react";
+import Link from "next/link";
+import { Plus, Sparkles } from "lucide-react";
 import type { Flashcard } from "@/types";
 import { createFlashcard, updateFlashcard, deleteFlashcard } from "@/lib/actions/flashcards";
 import { buildFlashcardStats, isDue } from "@/lib/srs";
@@ -66,6 +67,7 @@ export function FlashcardsClient({ initial }: { initial: Flashcard[] }) {
         title="Flashcards"
         description="Spaced-repetition review across every topic — grade each card honestly and the schedule (1 → 3 → 7 → 14 → 30 days) takes care of the rest."
       >
+        <Button variant="ghost" asChild><Link href="/flashcards/generate"><Sparkles className="h-4 w-4" /> Generate from notes</Link></Button>
         <Button onClick={openCreate}><Plus className="h-4 w-4" /> New flashcard</Button>
       </PageHeader>
 

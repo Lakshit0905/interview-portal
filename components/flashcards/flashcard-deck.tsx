@@ -60,6 +60,7 @@ function DeckCard({ card, onEdit, onDelete }: {
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="outline" className={cn(accent.text, accent.ring)}>{card.difficulty}</Badge>
           <Badge variant="muted">{card.topic}</Badge>
+          {card.subtopic && <Badge variant="outline" className="text-muted-foreground">{card.subtopic}</Badge>}
           {due && <Badge className="bg-signal-amber/15 text-signal-amber ring-1 ring-signal-amber/30">Due</Badge>}
         </div>
         <DropdownMenu>
@@ -79,6 +80,11 @@ function DeckCard({ card, onEdit, onDelete }: {
       <div>
         <p className="text-sm font-medium leading-snug">{card.front}</p>
         <p className="mt-1.5 line-clamp-3 text-sm text-muted-foreground">{card.back}</p>
+        {card.tags && card.tags.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {card.tags.map((t) => <span key={t} className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.65rem] text-muted-foreground">#{t}</span>)}
+          </div>
+        )}
       </div>
       <div className="mt-auto flex items-center justify-between border-t border-border/60 pt-2.5 font-mono text-[0.7rem] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
