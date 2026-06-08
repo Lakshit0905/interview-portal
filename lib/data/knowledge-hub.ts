@@ -1,5 +1,5 @@
 // Master data for the Knowledge Hub.
-// 30 subjects grouped into 7 category bands.
+// 32 subjects grouped into 7 category bands.
 // Each subject carries: metadata, ordered topic list, stats mapping
 // (which flashcard topic / question category maps to it), and related subjects.
 
@@ -659,6 +659,63 @@ export const HUB_SUBJECTS: HubSubject[] = [
       { slug: "salary", title: "Salary Negotiation", isPriority: true },
       { slug: "questions-to-ask", title: "Questions to Ask Them", isPriority: true },
       { slug: "interview-questions", title: "Common Questions Tracker" },
+    ],
+  },
+
+  // ── Languages (continued) ─────────────────────────────────────────────────
+  {
+    slug: "python",
+    title: "Python",
+    icon: "Code",
+    accent: "blue",
+    band: "Languages",
+    description: "Python for SDET — core language, pytest, async, OOP, API testing, and Playwright Python binding.",
+    relatedSlugs: ["api-testing", "framework-design", "design-patterns"],
+    topics: [
+      { slug: "fundamentals", title: "Fundamentals", isPriority: true, subtopics: ["Variables & Types", "Control Flow", "Scope & Namespaces", "Type Hints"] },
+      { slug: "functions-closures", title: "Functions & Closures", subtopics: ["args / kwargs", "Decorators", "Lambda", "Closures"] },
+      { slug: "oop", title: "OOP in Python", isPriority: true, subtopics: ["Classes", "Inheritance", "Dunder Methods", "Dataclasses"] },
+      { slug: "data-structures", title: "Data Structures", subtopics: ["List / Tuple", "Dict / Set", "Comprehensions", "Generators"] },
+      { slug: "modules-packages", title: "Modules & Packages", subtopics: ["import system", "virtual envs", "pip / pyproject.toml"] },
+      { slug: "exception-handling", title: "Exception Handling" },
+      { slug: "file-io", title: "File Handling & I/O" },
+      { slug: "async", title: "Async Programming", isPriority: true, subtopics: ["asyncio", "async/await", "Event Loop", "aiohttp"] },
+      { slug: "pytest", title: "pytest", isPriority: true, subtopics: ["Test Discovery", "Assertions", "Markers", "Plugins"] },
+      { slug: "pytest-fixtures", title: "pytest Fixtures", isPriority: true, subtopics: ["Scope", "Autouse", "conftest.py", "Factory Fixtures"] },
+      { slug: "pytest-parametrize", title: "pytest Parametrize", isPriority: true },
+      { slug: "test-organisation", title: "Test Organisation", subtopics: ["Folder Structure", "conftest.py", "Shared Helpers"] },
+      { slug: "api-testing-python", title: "API Testing with Python", subtopics: ["requests", "httpx", "pydantic", "JSON schema"] },
+      { slug: "playwright-python", title: "Playwright Python Binding", subtopics: ["sync_playwright", "async_playwright", "Page Object", "Fixtures"] },
+      { slug: "design-patterns-python", title: "Design Patterns in Python" },
+      { slug: "interview-questions", title: "Interview Questions", isPriority: true },
+    ],
+  },
+
+  // ── Architecture (continued) ──────────────────────────────────────────────
+  {
+    slug: "software-methodologies",
+    title: "Software Methodologies",
+    icon: "Repeat2",
+    accent: "violet",
+    band: "Architecture",
+    description: "Agile, Scrum, Kanban, BDD, TDD, ATDD, SAFe, and DevTestOps — how SDETs operate across delivery models.",
+    relatedSlugs: ["test-strategy", "test-architecture", "cicd"],
+    topics: [
+      { slug: "agile-fundamentals", title: "Agile Fundamentals", isPriority: true, subtopics: ["Manifesto & Principles", "Iterative Delivery", "Feedback Loops"] },
+      { slug: "scrum", title: "Scrum", isPriority: true, subtopics: ["Roles", "Ceremonies", "Artifacts", "Sprint Lifecycle"] },
+      { slug: "kanban", title: "Kanban", subtopics: ["WIP Limits", "Flow Metrics", "Kanban Board"] },
+      { slug: "safe", title: "SAFe (Scaled Agile)", subtopics: ["PI Planning", "ART", "Team Iteration"] },
+      { slug: "bdd", title: "BDD — Behaviour-Driven Development", isPriority: true, subtopics: ["Gherkin / Given-When-Then", "Cucumber / Behave", "Living Documentation"] },
+      { slug: "tdd", title: "TDD — Test-Driven Development", isPriority: true, subtopics: ["Red-Green-Refactor", "Unit-first approach", "Test doubles"] },
+      { slug: "atdd", title: "ATDD — Acceptance TDD", subtopics: ["Acceptance Criteria", "Three Amigos", "Example Mapping"] },
+      { slug: "shift-left", title: "Shift-Left Testing", isPriority: true, subtopics: ["Early involvement", "Dev-SDET pairing", "PR-level tests"] },
+      { slug: "shift-right", title: "Shift-Right & Continuous Testing", subtopics: ["Canary testing", "A/B testing", "Production testing"] },
+      { slug: "devtestops", title: "DevTestOps", subtopics: ["Integrating QA in DevOps", "Test-in-pipeline", "Quality gates"] },
+      { slug: "ceremonies-for-sdet", title: "Agile Ceremonies for SDETs", isPriority: true, subtopics: ["Refinement", "Sprint Review", "Retrospective", "Definition of Done"] },
+      { slug: "estimation", title: "Estimation & Story Points", subtopics: ["Planning Poker", "T-shirt sizing", "Test effort estimation"] },
+      { slug: "dod-dor", title: "Definition of Done & Ready", isPriority: true },
+      { slug: "metrics", title: "Quality Metrics in Agile", subtopics: ["Defect escape rate", "Cycle time", "Test coverage trend"] },
+      { slug: "interview-questions", title: "Interview Questions", isPriority: true },
     ],
   },
 ];
