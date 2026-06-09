@@ -1,0 +1,184 @@
+---
+title: "Page Object Model"
+description: "POM pattern in Playwright — page classes, base page, reusable components, and factory pattern."
+section: "Page Object Model"
+tags: ["playwright", "pom", "page-object", "design-patterns"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## What is Page Object Model
+
+POM encapsulates page-specific interactions into classes. Tests call page methods instead of directly using locators — making tests readable and reducing duplication.
+
+```
+Test → Page Object (methods) → Playwright Locators → Browser
+```
+
+## Base Page
+
+A shared base class reduces boilerplate:
+
+```typescript
+// pages/BasePage.ts
+import { Page, Locator } from '@playwright/test';
+
+export class BasePage {
+  constructor(protected page: Page) {}
+
+  async goto(path: string) {
+    await this.page.goto(path);
+  }
+
+  async getTitle() {
+    return this.page.title();
+  }
+
+  async waitForToast(message: string) {
+    await this.page.getByText(message).waitFor({ state: 'visible' });
+  }
+}
+```
+
+## Page Classes
+
+```typescript
+// pages/LoginPage.ts
+import { Page, expect } from '@playwright/test';
+import { BasePage } from './BasePage';
+
+export class LoginPage extends BasePage {
+  private emailInput = this.page.getByLabel('Email');
+  private passwordInput = this.page.getByLabel('Password');
+  private submitButton = this.page.getByRole('button', { name: 'Login' });
+  private errorMessage = this.page.getByRole('alert');
+
+  async navigate() {
+    await this.goto('/login');
+  }
+
+  async login(email: string, password: string) {
+    await this.emailInput.fill(email);
+    await this.passwordInput.fill(password);
+    await this.submitButton.click();
+  }
+
+  async loginAndExpectDashboard(email: string, password: string) {
+    await this.login(email, password);
+    await this.page.waitForURL('/dashboard');
+  }
+
+  async expectError(message: string) {
+    await expect(this.errorMessage).toHaveText(message);
+  }
+}
+```
+
+## Reusable Components
+
+Extract repeated UI patterns into component classes:
+
+```typescript
+// pages/components/NavigationMenu.ts
+export class NavigationMenu {
+  constructor(private page: Page) {}
+
+  private nav = this.page.getByRole('navigation');
+
+  async clickLink(name: string) {
+    await this.nav.getByRole('link', { name }).click();
+  }
+
+  async expectActiveLink(name: string) {
+    await expect(
+      this.nav.getByRole('link', { name })
+    ).toHaveClass(/active/);
+  }
+}
+
+// pages/DashboardPage.ts
+import { NavigationMenu } from './components/NavigationMenu';
+
+export class DashboardPage extends BasePage {
+  nav = new NavigationMenu(this.page);
+
+  async navigateTo(section: string) {
+    await this.nav.clickLink(section);
+  }
+}
+```
+
+## Page Factory Pattern
+
+Centralise page instantiation:
+
+```typescript
+// pages/PageFactory.ts
+import { Page } from '@playwright/test';
+import { LoginPage } from './LoginPage';
+import { DashboardPage } from './DashboardPage';
+import { ProductsPage } from './ProductsPage';
+
+export class PageFactory {
+  constructor(private page: Page) {}
+
+  get login() { return new LoginPage(this.page); }
+  get dashboard() { return new DashboardPage(this.page); }
+  get products() { return new ProductsPage(this.page); }
+}
+```
+
+## Integrating with Fixtures
+
+```typescript
+// fixtures.ts
+import { test as base } from '@playwright/test';
+import { PageFactory } from './pages/PageFactory';
+
+export const test = base.extend<{ pages: PageFactory }>({
+  pages: async ({ page }, use) => {
+    await use(new PageFactory(page));
+  },
+});
+
+// spec.ts
+test('user can add to cart', async ({ pages }) => {
+  await pages.login.loginAndExpectDashboard('u@t.com', 'pass');
+  await pages.products.addToCart('Laptop');
+  await expect(pages.dashboard.cartCount).toHaveText('1');
+});
+```
+
+## Folder Structure
+
+```
+tests/
+├── specs/
+│   ├── auth.spec.ts
+│   └── products.spec.ts
+├── pages/
+│   ├── BasePage.ts
+│   ├── LoginPage.ts
+│   ├── DashboardPage.ts
+│   └── components/
+│       ├── NavigationMenu.ts
+│       └── CartWidget.ts
+├── fixtures.ts
+└── playwright.config.ts
+```
+
+## Common Mistakes
+
+- **Large page objects** — if a page class has 20+ methods, split by feature area
+- **Assertions inside page objects** — keep assertions in tests; page objects should only interact, not assert
+- **Exposing raw locators** — return data or perform actions; don't let tests reach into locators directly
+
+## Flashcards
+
+**Q: What is the key benefit of POM over writing locators directly in tests?**
+Encapsulation — when a page changes, you update one page class, not dozens of test files.
+
+**Q: Should assertions go inside page objects?**
+Generally no. Page objects should describe interactions. Assertions in tests keeps them readable and lets you reuse interactions across different assertions.
+
+**Q: What is the Page Factory pattern in Playwright?**
+A class that returns page object instances, used with fixtures to give tests a single `pages` fixture that provides all page objects without constructing them manually.

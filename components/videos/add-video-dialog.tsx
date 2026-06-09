@@ -45,7 +45,20 @@ export function AddVideoDialog({ open, onOpenChange, onCreated }: {
         onOpenChange(false);
         reset();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not generate study material from this transcript.");
+        if (err instanceof Error) {
+          try {
+            const issues = JSON.parse(err.message) as { path: string[]; message: string }[];
+            if (Array.isArray(issues) && issues.length > 0) {
+              setError(issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(" · "));
+            } else {
+              setError(err.message);
+            }
+          } catch {
+            setError(err.message);
+          }
+        } else {
+          setError("Could not generate study material from this transcript.");
+        }
       }
     });
   }
@@ -79,7 +92,7 @@ export function AddVideoDialog({ open, onOpenChange, onCreated }: {
               <datalist id="video-topic-presets">{TOPIC_PRESETS.map((t) => <option key={t} value={t} />)}</datalist>
             </label>
             <label className="block"><span className="mono-label mb-1.5 block">Duration (minutes)</span>
-              <Input type="number" min={1} max={600} value={draft.durationMinutes}
+              <Input type="number" min={1} max={2880} value={draft.durationMinutes}
                 onChange={(e) => set("durationMinutes", e.target.value)} /></label>
           </div>
           <label className="block">

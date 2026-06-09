@@ -1,0 +1,143 @@
+---
+title: "Auto Waiting"
+description: "How Playwright's built-in waiting mechanism works and all explicit wait strategies."
+section: "Waiting Strategies"
+tags: ["playwright", "auto-wait", "waiting", "timeouts"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## Auto Wait
+
+Playwright **automatically waits** before performing any action. You almost never need `sleep()` or manual waits.
+
+Before acting on an element, Playwright verifies it is:
+1. **Attached** to the DOM
+2. **Visible** — has non-zero bounding box and no `visibility:hidden` / `display:none`
+3. **Stable** — not animating or moving
+4. **Receives events** — not obscured by another element
+5. **Enabled** — not `disabled` attribute
+
+```typescript
+// No need for explicit wait — Playwright waits automatically:
+await page.getByRole('button', { name: 'Submit' }).click();
+await page.getByLabel('Email').fill('test@test.com');
+```
+
+## Explicit Waits (When You Need Them)
+
+### Wait for Selector
+
+```typescript
+// Wait for element to appear
+await page.waitForSelector('.modal');
+await page.waitForSelector('#result', { state: 'visible' });
+await page.waitForSelector('.spinner', { state: 'hidden' }); // wait to disappear
+await page.waitForSelector('.item', { state: 'attached' });
+```
+
+### Wait for URL
+
+```typescript
+await page.waitForURL('/dashboard');
+await page.waitForURL(/\/products\/\d+/);
+await page.waitForURL('**/checkout', { timeout: 10_000 });
+```
+
+### Wait for Response / Request
+
+```typescript
+// Wait for a specific API call to complete
+const [response] = await Promise.all([
+  page.waitForResponse('**/api/users'),
+  page.getByRole('button', { name: 'Load' }).click(),
+]);
+const data = await response.json();
+```
+
+```typescript
+// Wait for request to be made
+const [request] = await Promise.all([
+  page.waitForRequest('**/api/submit'),
+  page.getByRole('button', { name: 'Submit' }).click(),
+]);
+```
+
+### Wait for Load State
+
+```typescript
+await page.waitForLoadState('domcontentloaded');
+await page.waitForLoadState('load');         // default
+await page.waitForLoadState('networkidle');  // all network quiet (fragile in SPAs)
+```
+
+### Wait for Function
+
+```typescript
+// Wait for a condition in the browser
+await page.waitForFunction(() => document.querySelectorAll('.item').length > 5);
+
+// With a custom timeout
+await page.waitForFunction(
+  (count) => document.querySelectorAll('.row').length >= count,
+  10,
+  { timeout: 8_000 }
+);
+```
+
+### Wait for Event
+
+```typescript
+// Wait for download to start
+const download = await page.waitForEvent('download');
+await page.getByRole('button', { name: 'Export CSV' }).click();
+await download.saveAs('./report.csv');
+
+// Wait for popup
+const popup = await page.waitForEvent('popup');
+await page.getByRole('link', { name: 'Open in new tab' }).click();
+```
+
+## Load States Explained
+
+| State | Triggers when |
+|---|---|
+| `domcontentloaded` | HTML parsed, deferred scripts not yet run |
+| `load` | All resources (images, scripts) loaded |
+| `networkidle` | No network activity for 500ms (avoid in SPAs) |
+
+## Configuring Timeouts
+
+```typescript
+// playwright.config.ts
+export default defineConfig({
+  timeout: 30_000,           // test-level timeout
+  expect: { timeout: 5_000 }, // assertion timeout
+  use: {
+    actionTimeout: 10_000,   // per-action timeout
+    navigationTimeout: 15_000,
+  },
+});
+```
+
+Override per action:
+```typescript
+await page.getByRole('button').click({ timeout: 5_000 });
+await page.goto('/slow-page', { timeout: 30_000 });
+```
+
+## Common Mistakes
+
+- **`page.waitForTimeout(2000)`** — equivalent to `sleep()`. Adds fixed delay regardless of page state. Use only as a last resort for debugging.
+- **`networkidle`** on SPAs — SSE or WebSocket connections never go idle. Avoid on real-time apps.
+- **Double-waiting** — waiting explicitly before an action that already auto-waits is redundant and slows tests.
+
+## Flashcards
+
+**Q: What 5 conditions does Playwright check before acting on an element?**
+Attached, visible, stable, receives events, enabled.
+
+**Q: When should you use `waitForLoadState('networkidle')`?**
+Rarely — avoid on SPAs with persistent connections. Prefer `waitForResponse` or `waitForURL` for specific conditions.
+
+**Q: What is the difference between `actionTimeout` and `timeout` in config?**
+`timeout` is the total test timeout. `actionTimeout` is the per-action timeout (click, fill, etc.). Both are configurable globally and overridable per-call.

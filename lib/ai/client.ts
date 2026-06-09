@@ -11,7 +11,7 @@ export const AI_ENABLED = Boolean(process.env.ANTHROPIC_API_KEY);
 export async function llm(system: string, messages: LLMMessage[], maxTokens = 1200): Promise<string> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("AI_DISABLED");
-  const model = process.env.AI_MODEL || "claude-sonnet-4-20250514";
+  const model = process.env.AI_MODEL || "claude-sonnet-4-6";
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",

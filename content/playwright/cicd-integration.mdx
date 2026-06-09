@@ -1,0 +1,208 @@
+---
+title: "CI/CD Integration"
+description: "GitHub Actions workflows, Docker execution, Jenkins, artifact upload, and parallel CI strategies."
+section: "CI/CD Integration"
+tags: ["playwright", "cicd", "github-actions", "docker", "jenkins"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## GitHub Actions — Basic Workflow
+
+```yaml
+# .github/workflows/playwright.yml
+name: Playwright Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run tests
+        run: npx playwright test
+        env:
+          BASE_URL: ${{ secrets.BASE_URL }}
+          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+```
+
+## GitHub Actions — Parallel Shards
+
+```yaml
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: 'npm' }
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npx playwright test --shard=${{ matrix.shard }}/4
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report/
+
+  merge-reports:
+    needs: test
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: 'npm' }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { pattern: blob-report-*, path: all-blob-reports, merge-multiple: true }
+      - run: npx playwright merge-reports --reporter=html ./all-blob-reports
+      - uses: actions/upload-artifact@v4
+        with: { name: html-report, path: playwright-report/ }
+```
+
+## Docker Execution
+
+Official Playwright Docker images have browsers pre-installed:
+
+```dockerfile
+# Dockerfile
+FROM mcr.microsoft.com/playwright:v1.44.0-jammy
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+CMD ["npx", "playwright", "test", "--reporter=list"]
+```
+
+```bash
+# Build and run
+docker build -t playwright-tests .
+docker run --rm playwright-tests
+
+# Pass environment variables
+docker run --rm \
+  -e BASE_URL=https://staging.myapp.com \
+  -e TEST_EMAIL=test@example.com \
+  playwright-tests
+
+# Mount test results out
+docker run --rm \
+  -v $(pwd)/test-results:/app/test-results \
+  playwright-tests
+```
+
+**Key flags for headless execution in Docker:**
+```typescript
+// playwright.config.ts — no special config needed
+// Playwright auto-detects Docker/CI and uses headless mode
+use: {
+  launchOptions: {
+    args: ['--no-sandbox', '--disable-dev-shm-usage'], // for older Docker setups
+  }
+}
+```
+
+## Scheduled Runs
+
+```yaml
+on:
+  schedule:
+    - cron: '0 6 * * 1-5'  # 6 AM Mon–Fri (UTC)
+  push:
+    branches: [main]
+```
+
+## Retry Strategy in CI
+
+```typescript
+// playwright.config.ts
+retries: process.env.CI ? 2 : 0,
+workers: process.env.CI ? 2 : undefined,  // fewer workers in CI for stability
+```
+
+## Jenkins Pipeline
+
+```groovy
+pipeline {
+  agent { docker { image 'mcr.microsoft.com/playwright:v1.44.0-jammy' } }
+  stages {
+    stage('Install') {
+      steps { sh 'npm ci' }
+    }
+    stage('Test') {
+      steps {
+        sh 'npx playwright test --reporter=junit'
+      }
+      post {
+        always {
+          junit 'test-results/junit.xml'
+          archiveArtifacts artifacts: 'playwright-report/**', allowEmptyArchive: true
+        }
+      }
+    }
+  }
+}
+```
+
+## Environment-based Configuration
+
+```typescript
+// playwright.config.ts
+const ENV = process.env.TEST_ENV || 'local';
+
+const BASE_URLS = {
+  local: 'http://localhost:3000',
+  staging: 'https://staging.myapp.com',
+  production: 'https://myapp.com',
+};
+
+export default defineConfig({
+  use: {
+    baseURL: BASE_URLS[ENV as keyof typeof BASE_URLS],
+  },
+});
+```
+
+## Flashcards
+
+**Q: Why use `--with-deps` when installing Playwright browsers in CI?**
+It installs the system libraries (libnss, libgbm, etc.) required by Chromium/Firefox/WebKit on Linux. Without it, browsers fail to launch.
+
+**Q: How do you run Playwright tests in Docker without a display server?**
+Use the official `mcr.microsoft.com/playwright` Docker image — it includes all dependencies for headless execution. No Xvfb required.
+
+**Q: What is `fail-fast: false` in GitHub Actions matrix strategy?**
+It allows all shard jobs to complete even if one fails, so you get the full test report across all shards before the workflow is marked failed.

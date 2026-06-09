@@ -1,0 +1,167 @@
+---
+title: "Mocking & Interception"
+description: "Route interception, mock responses, request modification, HAR replay, and network monitoring."
+section: "Network Handling"
+tags: ["playwright", "mocking", "network", "route", "interception"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## Route Interception
+
+`page.route()` intercepts any request matching a glob or regex. Every intercepted route **must** be resolved — call `fulfill`, `continue`, or `abort`.
+
+```typescript
+// Intercept all API calls
+await page.route('**/api/**', route => route.continue());
+
+// Fulfill with mock data
+await page.route('**/api/users', route => {
+  route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([{ id: 1, name: 'Alice' }]),
+  });
+});
+```
+
+## Mock Responses (API Stubbing)
+
+```typescript
+test('shows users from API', async ({ page }) => {
+  await page.route('**/api/users', route => {
+    route.fulfill({
+      status: 200,
+      body: JSON.stringify([
+        { id: 1, name: 'Alice', role: 'admin' },
+        { id: 2, name: 'Bob', role: 'viewer' },
+      ]),
+    });
+  });
+
+  await page.goto('/users');
+  await expect(page.getByText('Alice')).toBeVisible();
+  await expect(page.getByText('Bob')).toBeVisible();
+});
+```
+
+## Simulating Error States
+
+```typescript
+// 500 Internal Server Error
+await page.route('**/api/orders', route => {
+  route.fulfill({ status: 500, body: '{"error":"Internal server error"}' });
+});
+
+// Empty list
+await page.route('**/api/products', route => {
+  route.fulfill({ status: 200, body: '[]' });
+});
+
+// Abort request (network failure)
+await page.route('**/api/slow-endpoint', route => route.abort('failed'));
+```
+
+## Modify Requests
+
+Intercept and modify outgoing requests before forwarding:
+
+```typescript
+await page.route('**/api/**', async route => {
+  const headers = { ...route.request().headers(), 'x-test-flag': 'true' };
+  await route.continue({ headers });
+});
+```
+
+## Network Monitoring (Passive)
+
+`page.on()` lets you observe requests without intercepting them:
+
+```typescript
+const requests: string[] = [];
+page.on('request', req => requests.push(req.url()));
+page.on('response', res => {
+  if (!res.ok()) console.log('FAILED:', res.url(), res.status());
+});
+
+await page.goto('/dashboard');
+console.log('Requests made:', requests.length);
+```
+
+## Assert on Request Payload
+
+```typescript
+const [request] = await Promise.all([
+  page.waitForRequest('**/api/submit'),
+  page.getByRole('button', { name: 'Submit' }).click(),
+]);
+
+const body = request.postDataJSON();
+expect(body.email).toBe('test@example.com');
+expect(body.role).toBe('admin');
+```
+
+## Assert on Response
+
+```typescript
+const [response] = await Promise.all([
+  page.waitForResponse('**/api/users'),
+  page.getByRole('button', { name: 'Load' }).click(),
+]);
+
+expect(response.status()).toBe(200);
+const data = await response.json();
+expect(data).toHaveLength(3);
+```
+
+## HAR Recording and Replay
+
+Record real traffic to a HAR file, then replay it for deterministic offline tests:
+
+```typescript
+// Record
+await page.routeFromHAR('tests/fixtures/api.har', { update: true });
+await page.goto('/app');
+// Playwright records all network calls to api.har
+
+// Replay (CI / offline)
+await page.routeFromHAR('tests/fixtures/api.har');
+await page.goto('/app'); // all requests served from HAR
+```
+
+## Latency Injection
+
+Test loading states and timeouts by delaying responses:
+
+```typescript
+await page.route('**/api/slow', async route => {
+  await new Promise(r => setTimeout(r, 3000)); // 3 second delay
+  await route.fulfill({ status: 200, body: '{"data":"ok"}' });
+});
+
+await page.goto('/');
+await expect(page.getByTestId('spinner')).toBeVisible();
+await expect(page.getByTestId('content')).toBeVisible({ timeout: 10_000 });
+```
+
+## Cheat Sheet
+
+| Goal | API |
+|---|---|
+| Mock response | `route.fulfill({ status, body })` |
+| Forward with changes | `route.continue({ headers, ... })` |
+| Block request | `route.abort('failed')` |
+| Observe only | `page.on('request' / 'response', cb)` |
+| Wait for request | `page.waitForRequest(urlGlob)` |
+| Wait for response | `page.waitForResponse(urlGlob)` |
+| Replay recorded traffic | `page.routeFromHAR(path)` |
+
+## Flashcards
+
+**Q: What happens if a route handler never resolves?**
+The request hangs indefinitely, causing a test timeout. Always call `fulfill`, `continue`, or `abort`.
+
+**Q: What is the difference between `page.route()` and `page.on('request')`?**
+`page.route()` intercepts and controls the outcome. `page.on('request')` is a passive observer — it cannot modify or block requests.
+
+**Q: When would you use HAR replay?**
+When you need deterministic, offline-capable tests that match real API response shapes exactly, without maintaining hand-written stubs.

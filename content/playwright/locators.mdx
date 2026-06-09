@@ -1,0 +1,135 @@
+---
+title: "Locators"
+description: "Playwright locator strategies — roles, text, CSS, XPath, test IDs, and chaining."
+section: "Locators"
+tags: ["playwright", "locators", "selectors", "accessibility"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## What are Locators
+
+A **Locator** in Playwright is a live reference to a DOM element. Unlike `ElementHandle`, locators retry automatically on every action, making tests resilient to timing issues.
+
+```typescript
+const btn = page.getByRole('button', { name: 'Submit' });
+await btn.click(); // retries until actionable
+```
+
+## Role Locators (Preferred)
+
+`getByRole()` uses the ARIA accessibility tree. This is the **recommended strategy** — tests are resilient and double as accessibility checks.
+
+```typescript
+page.getByRole('button', { name: 'Login' })
+page.getByRole('textbox', { name: 'Email' })
+page.getByRole('heading', { name: 'Dashboard', level: 1 })
+page.getByRole('link', { name: 'Sign up' })
+page.getByRole('checkbox', { name: 'Remember me' })
+page.getByRole('combobox', { name: 'Country' })
+```
+
+**Why prefer `getByRole`?**
+- Accessibility-friendly — same as how screen readers see the page
+- More resilient to DOM restructuring than CSS/XPath
+- Fails fast when semantic markup is broken
+
+## Text Locators
+
+```typescript
+page.getByText('Welcome back')           // exact substring match
+page.getByText('Welcome back', { exact: true })  // exact full match
+page.getByLabel('Email address')         // input by associated label
+page.getByPlaceholder('Enter email')     // input by placeholder
+```
+
+## CSS Locators
+
+```typescript
+page.locator('button.primary')
+page.locator('#submit-btn')
+page.locator('[data-testid="login-btn"]')
+page.locator('input[type="email"]')
+```
+
+## XPath
+
+Use sparingly — brittle and hard to maintain.
+
+```typescript
+page.locator('//button[@type="submit"]')
+page.locator('xpath=//div[@class="modal"]//input')
+```
+
+## Test IDs (Best for stability)
+
+```typescript
+// In app code:
+// <button data-testid="submit">...</button>
+
+page.getByTestId('submit')
+// or
+page.locator('[data-testid="submit"]')
+```
+
+Configure the attribute name globally:
+```typescript
+// playwright.config.ts
+use: {
+  testIdAttribute: 'data-testid'
+}
+```
+
+## Chained Locators
+
+Scope a locator within a parent element:
+
+```typescript
+const form = page.locator('form#login');
+await form.getByLabel('Email').fill('test@example.com');
+await form.getByLabel('Password').fill('secret');
+await form.getByRole('button', { name: 'Login' }).click();
+
+// Within a table row:
+const row = page.getByRole('row', { name: 'John' });
+await row.getByRole('button', { name: 'Edit' }).click();
+```
+
+## Locator Filters
+
+```typescript
+page.getByRole('listitem').filter({ hasText: 'Product 1' })
+page.getByRole('listitem').filter({ has: page.getByRole('button') })
+page.locator('.item').nth(2)        // zero-indexed
+page.locator('.item').first()
+page.locator('.item').last()
+```
+
+## Locator vs ElementHandle
+
+| | Locator | ElementHandle |
+|---|---|---|
+| Retry on action | Yes — auto-retry | No — snapshot in time |
+| Stale element | Never stale | Can become stale |
+| Preferred? | Yes | No (legacy, avoid) |
+
+## Flashcards
+
+**Q: Which locator strategy is recommended and why?**
+`getByRole()` — it mirrors how accessibility tools see the page, is resilient to DOM changes, and catches accessibility regressions.
+
+**Q: What is the difference between `getByText` and `getByLabel`?**
+`getByText` matches visible text content. `getByLabel` finds form inputs via their associated `<label>` element — more semantic for forms.
+
+**Q: Why avoid XPath everywhere?**
+XPath is tightly coupled to DOM structure. Any refactoring breaks selectors. Prefer role/text/testid selectors that reflect user-visible behaviour.
+
+## Exercise
+
+Automate a login page using only role-based locators:
+
+```typescript
+await page.getByRole('textbox', { name: 'Email' }).fill('user@test.com');
+await page.getByRole('textbox', { name: 'Password' }).fill('pass123');
+await page.getByRole('button', { name: 'Login' }).click();
+await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+```

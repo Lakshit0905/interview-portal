@@ -1,0 +1,145 @@
+---
+title: "Parallel Execution"
+description: "Workers, projects, sharding, retries, and configuration for fast, reliable parallel test runs."
+section: "Parallel Execution"
+tags: ["playwright", "parallel", "workers", "sharding", "ci"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## Workers
+
+Playwright runs tests in parallel using worker processes. Each worker runs one test at a time in a separate process.
+
+```typescript
+// playwright.config.ts
+export default defineConfig({
+  workers: 4,                    // 4 parallel workers
+  workers: '50%',                // half the CPU cores
+  fullyParallel: true,           // tests within a file also run in parallel
+});
+```
+
+**Default behaviour:** Tests in different files run in parallel. Tests within the same file run serially (unless `fullyParallel: true`).
+
+## Projects
+
+Projects let you run the same tests across different browsers, environments, or configurations:
+
+```typescript
+projects: [
+  { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+  { name: 'firefox',  use: { ...devices['Desktop Firefox'] } },
+  { name: 'webkit',   use: { ...devices['Desktop Safari'] } },
+  {
+    name: 'Mobile Chrome',
+    use: { ...devices['Pixel 5'] },
+  },
+  {
+    name: 'staging',
+    use: { baseURL: 'https://staging.myapp.com' },
+    testDir: './tests/smoke',
+  },
+]
+```
+
+## Sharding (for CI at scale)
+
+Split your test suite across multiple CI machines:
+
+```bash
+# Machine 1
+npx playwright test --shard=1/4
+
+# Machine 2
+npx playwright test --shard=2/4
+
+# Machine 3
+npx playwright test --shard=3/4
+
+# Machine 4
+npx playwright test --shard=4/4
+```
+
+Merge reports after all shards complete:
+```bash
+npx playwright merge-reports --reporter=html ./all-blob-reports
+```
+
+## Retries
+
+```typescript
+// playwright.config.ts
+retries: process.env.CI ? 2 : 0, // retry twice in CI, never locally
+```
+
+Per-test retry:
+```typescript
+test('flaky scenario', { retries: 3 }, async ({ page }) => {
+  // retried up to 3 times on failure
+});
+```
+
+## Test Isolation
+
+Each test gets a **fresh `page` and `context`** by default. No shared state between tests.
+
+Do NOT share mutable state across tests:
+```typescript
+// BAD — shared state causes flakiness in parallel
+let sharedPage: Page;
+test.beforeAll(async ({ browser }) => {
+  sharedPage = await browser.newPage();
+});
+
+// GOOD — isolated per test
+test('example', async ({ page }) => {
+  // fresh page for this test only
+});
+```
+
+## Controlling Parallelism
+
+```typescript
+// Force a file to run serially (e.g., tests that share a DB)
+test.describe.configure({ mode: 'serial' });
+
+// Skip parallel for a specific describe block
+test.describe.serial('checkout flow', () => {
+  test('add to cart', ...);
+  test('checkout', ...);
+});
+```
+
+## Parallelism Pitfalls
+
+| Problem | Cause | Fix |
+|---|---|---|
+| Tests pass alone, fail in parallel | Shared test data | Use unique data per test |
+| Random port/env collisions | Hard-coded values | Use env variables or random ports |
+| Race on DB records | Parallel inserts | Scope data per worker/test ID |
+| Flaky auth state | Shared storage state | Create per-role, not per-test |
+
+## GitHub Actions — Parallel Shards
+
+```yaml
+strategy:
+  matrix:
+    shard: [1, 2, 3, 4]
+steps:
+  - run: npx playwright test --shard=${{ matrix.shard }}/4
+  - uses: actions/upload-artifact@v4
+    with:
+      name: blob-report-${{ matrix.shard }}
+      path: blob-report/
+```
+
+## Flashcards
+
+**Q: What is the difference between `workers` and `fullyParallel`?**
+`workers` sets how many parallel processes run. `fullyParallel: true` additionally allows tests within the same file to run in parallel across workers.
+
+**Q: How do you prevent data conflicts in parallel tests?**
+Each test creates its own unique test data (use `uid()` or timestamps in names) and cleans up after itself in teardown.
+
+**Q: What is sharding and when do you use it?**
+Sharding splits the test suite across multiple CI machines. Use it when your suite is too large for a single machine to complete in your CI time budget.

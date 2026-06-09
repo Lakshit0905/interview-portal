@@ -1,0 +1,153 @@
+---
+title: "Interview Questions"
+description: "Mid-level, senior, and lead-level Playwright interview questions with answers and real-world scenarios."
+section: "Interview Questions"
+tags: ["playwright", "interview", "questions", "sdet"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## Mid-Level Questions
+
+**Q: What is BrowserContext and why does it matter?**
+A `BrowserContext` is an isolated browser session — similar to an incognito window — with its own cookies, localStorage, and session storage. Every test gets a fresh context by default, ensuring complete isolation. Use multiple contexts in one test to simulate different logged-in users simultaneously.
+
+**Q: How does Playwright auto-wait work?**
+Before performing any action (click, fill, etc.), Playwright checks 5 conditions: the element is attached to DOM, visible, stable (not animating), receives events (not covered), and enabled. This eliminates the need for explicit waits in most cases.
+
+**Q: Difference between Locator and ElementHandle?**
+A `Locator` is a live query — it retries automatically and never goes stale. An `ElementHandle` is a snapshot of a DOM node at a point in time — it can become stale if the DOM changes. Always prefer `Locator`.
+
+**Q: How do you handle iframes?**
+Use `page.frameLocator(selector)` which provides the full Locator API with auto-waiting inside the frame:
+```typescript
+const frame = page.frameLocator('#payment-iframe');
+await frame.getByLabel('Card number').fill('4242...');
+```
+
+**Q: How do you upload files in Playwright?**
+Use `setInputFiles()` on the file input locator:
+```typescript
+await page.getByLabel('Upload').setInputFiles('./tests/fixtures/file.csv');
+```
+
+**Q: How do you mock APIs in Playwright?**
+Use `page.route()` to intercept requests and `route.fulfill()` to return mock data:
+```typescript
+await page.route('**/api/users', route => {
+  route.fulfill({ status: 200, body: JSON.stringify([{ id: 1, name: 'Alice' }]) });
+});
+```
+
+---
+
+## Senior-Level Questions
+
+**Q: Design a Playwright framework for 1000+ tests.**
+
+Key decisions:
+- **POM** for all pages with a `BasePage` and reusable components
+- **Fixtures** for auth setup (storageState per role), data factory, and page injection
+- **Projects** config: one project per browser + staging/prod environments
+- **Sharding** in CI: split into 4–8 shards run in parallel
+- **Data strategy**: seed via API in fixtures, clean up in teardown using `afterAll`
+- **Reporting**: Allure with `on-first-retry` trace + screenshot on failure
+- **Config**: environment-driven (`TEST_ENV`, `BASE_URL` from env)
+- **Folder structure**: `pages/`, `fixtures/`, `utils/data-factory.ts`, `config/environments.ts`
+
+**Q: How would you reduce flaky tests?**
+1. Replace `waitForTimeout` with `waitForResponse` / `waitForURL` / auto-wait
+2. Use unique test data per test to eliminate parallel conflicts
+3. Enable `retries: 2` in CI to distinguish true failures from noise
+4. Use `Trace Viewer` to identify timing/state root causes
+5. Mock unstable external APIs with `page.route()`
+6. Fix locators — avoid position-based selectors that break on reorder
+
+**Q: How would you execute tests across multiple environments?**
+```typescript
+// playwright.config.ts
+const ENV = process.env.TEST_ENV || 'staging';
+const BASE_URLS = { staging: '...', prod: '...' };
+
+export default defineConfig({
+  use: { baseURL: BASE_URLS[ENV] },
+});
+```
+Run as: `TEST_ENV=prod npx playwright test --project=smoke`
+
+**Q: How would you support multiple applications in one framework?**
+Create separate projects in `playwright.config.ts`, each with its own `testDir`, `baseURL`, and optionally `storageState`. Share utilities and fixtures via a common `src/` directory.
+
+**Q: How would you implement reporting and observability?**
+- `trace: 'on-first-retry'` for failure investigation
+- Allure reporter with steps and labels for stakeholder dashboards
+- Custom reporter posting results to Slack/JIRA on failure
+- JSON output piped to a test analytics dashboard (flakiness trends, coverage)
+- GitHub Actions annotations for PR feedback
+
+---
+
+## Lead-Level Questions
+
+**Q: How would you define automation strategy for a large organisation?**
+- Align to the **testing pyramid**: unit → integration → E2E (fewer at the top)
+- E2E covers critical user journeys, not exhaustive permutations
+- Define **ownership**: feature teams own their E2E tests, platform team owns the framework
+- Gate PRs with a smoke suite (< 5 min); run the full suite nightly
+- Track **flakiness rate** as a KPI — target < 1%
+
+**Q: How would you measure automation ROI?**
+- **Defect detection rate**: bugs caught by automation before production
+- **Time saved**: manual testing hours replaced × hourly cost
+- **Cycle time reduction**: PR feedback time before vs. after automation
+- **Flakiness cost**: engineering hours spent on false failures
+- **Coverage %**: critical paths covered vs. total
+
+**Q: How would you handle framework governance?**
+- PRs to the framework reviewed by an automation guild
+- Linting + type checking enforced via pre-commit hooks
+- Versioned releases with changelogs
+- Onboarding docs and coding standards in the repo
+- Quarterly reviews of test health metrics
+
+**Q: How would you scale execution for 20 teams?**
+- **Distributed execution**: each team has its own shard allocation
+- **Selective execution**: run only tests tagged for changed services
+- **Shared infrastructure**: central Docker image, Playwright version pinned
+- **Centralised reporting**: aggregated dashboard showing all team results
+- **On-call rotation**: each team owns their flaky test budget
+
+---
+
+## Real-World Scenarios
+
+**Scenario: Login works locally but fails in CI**
+Check: hard-coded URLs vs env vars, timing differences (CI is slower), network latency. Enable `retries: 2` and capture trace to see exactly which step fails.
+
+**Scenario: Element visible but click fails**
+Usually means another element covers it. Use Trace Viewer to see the before-screenshot. Add a step to close the overlay, or use `{ force: true }` if intentional.
+
+**Scenario: Tests pass individually but fail in parallel**
+Shared test data is the most common cause. Give each test a unique user/resource ID and clean up in `afterEach`.
+
+**Scenario: SSO authentication handling**
+Log in once headfully, save `storageState`, commit to the repo (if non-sensitive) or cache in CI. If SSO requires MFA, use a test IdP or a dedicated test account with MFA disabled.
+
+---
+
+## Cheat Sheet
+
+| Action | Code |
+|---|---|
+| Launch browser | `chromium.launch()` |
+| Navigate | `page.goto(url)` |
+| Click | `locator.click()` |
+| Fill | `locator.fill('text')` |
+| Assert visible | `expect(locator).toBeVisible()` |
+| Upload | `locator.setInputFiles(path)` |
+| Download | `page.waitForEvent('download')` |
+| API request | `request.get(url)` |
+| Mock API | `page.route(url, handler)` |
+| Enable trace | `trace: 'on-first-retry'` |
+| Storage state | `context.storageState({ path })` |
+| Parallel workers | `workers: 4` in config |
+| Sharding | `--shard=1/4` CLI flag |

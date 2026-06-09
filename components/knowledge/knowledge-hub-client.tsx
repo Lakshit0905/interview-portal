@@ -73,18 +73,22 @@ export function KnowledgeHubClient({ statsMap }: KnowledgeHubClientProps) {
   return (
     <div>
       {/* Hero stats */}
-      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="mb-10 grid grid-cols-2 gap-4 sm:grid-cols-5">
         {[
-          { label: "Subjects",       value: totals.subjects },
-          { label: "Topics",         value: totals.topics },
-          { label: "Notes",          value: totals.notes },
-          { label: "Flashcards",     value: totals.cards },
-          { label: "Interview Q&As", value: totals.questions },
+          { label: "Subjects",       value: totals.subjects, color: "text-blue-500" },
+          { label: "Topics",         value: totals.topics, color: "text-emerald-500" },
+          { label: "Notes",          value: totals.notes, color: "text-amber-500" },
+          { label: "Flashcards",     value: totals.cards, color: "text-violet-500" },
+          { label: "Interview Q&As", value: totals.questions, color: "text-rose-500" },
         ].map((stat) => (
-          <div key={stat.label} className="flex flex-col gap-1 rounded-xl border border-border bg-card/40 p-3 text-center">
-            <span className="font-mono text-xl font-bold tabular-nums tracking-tight">{stat.value}</span>
-            <span className="font-mono text-[0.65rem] text-muted-foreground">{stat.label}</span>
-          </div>
+          <motion.div 
+            key={stat.label} 
+            whileHover={{ scale: 1.02 }}
+            className="flex flex-col gap-1 rounded-2xl border border-border bg-card/30 p-4 text-center shadow-sm backdrop-blur-sm"
+          >
+            <span className={cn("font-mono text-2xl font-black tabular-nums tracking-tight", stat.color)}>{stat.value}</span>
+            <span className="font-mono text-[0.6rem] font-bold uppercase tracking-tighter text-muted-foreground/60">{stat.label}</span>
+          </motion.div>
         ))}
       </div>
 
@@ -186,15 +190,15 @@ function BandChip({ band, active, onClick, count, emoji }: { band: string; activ
     <button
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 font-mono text-xs transition-all",
+        "inline-flex items-center gap-2 rounded-xl border px-4 py-2 font-mono text-xs font-medium transition-all",
         active
-          ? "border-primary/40 bg-primary/10 text-primary"
-          : "border-border text-muted-foreground hover:border-primary/20 hover:text-foreground",
+          ? "border-primary/50 bg-primary/10 text-primary shadow-lg shadow-primary/5 ring-1 ring-primary/20"
+          : "border-border bg-card/20 text-muted-foreground hover:border-primary/30 hover:bg-card/50 hover:text-foreground",
       )}
     >
       {emoji && <span>{emoji}</span>}
       {band}
-      <span className={cn("rounded-md px-1 py-0.5 text-[0.6rem] tabular-nums", active ? "bg-primary/20" : "bg-muted")}>{count}</span>
+      <span className={cn("ml-1 rounded-full px-2 py-0.5 text-[0.65rem] font-bold tabular-nums", active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>{count}</span>
     </button>
   );
 }

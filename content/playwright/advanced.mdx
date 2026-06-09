@@ -1,0 +1,205 @@
+---
+title: "Advanced Scenarios"
+description: "iframes, multiple tabs, file upload/download, browser context, actions, and visual testing."
+section: "Advanced Scenarios"
+tags: ["playwright", "iframes", "tabs", "upload", "download", "browser-context", "visual-testing"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## Browser Context
+
+`BrowserContext` is an isolated browser session — like an incognito window. Each context has its own cookies, localStorage, and session state.
+
+```typescript
+// Create isolated context manually
+const context = await browser.newContext({
+  storageState: 'auth.json',
+  locale: 'en-GB',
+  timezoneId: 'Europe/London',
+  permissions: ['geolocation'],
+  geolocation: { latitude: 51.5, longitude: -0.1 },
+});
+const page = await context.newPage();
+```
+
+### Context Features
+
+```typescript
+// Cookies
+await context.addCookies([{ name: 'auth', value: 'token', domain: 'example.com', path: '/' }]);
+const cookies = await context.cookies();
+await context.clearCookies();
+
+// Local/Session storage
+await page.evaluate(() => localStorage.setItem('theme', 'dark'));
+const theme = await page.evaluate(() => localStorage.getItem('theme'));
+
+// Permissions
+await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+await context.grantPermissions(['notifications']);
+```
+
+## iframe Handling
+
+```typescript
+// Get frame by name or URL
+const frame = page.frame({ name: 'payment-iframe' });
+const frame = page.frame({ url: /stripe.com/ });
+
+// FrameLocator (preferred — same API as Page)
+const frameLocator = page.frameLocator('#payment-frame');
+await frameLocator.getByLabel('Card number').fill('4242 4242 4242 4242');
+await frameLocator.getByRole('button', { name: 'Pay' }).click();
+
+// Nested iframes
+const inner = page.frameLocator('#outer').frameLocator('#inner');
+await inner.getByRole('button').click();
+```
+
+## Multiple Tabs / Popups
+
+```typescript
+// Catch a popup triggered by a click
+const popupPromise = page.waitForEvent('popup');
+await page.getByRole('link', { name: 'Open in new tab' }).click();
+const popup = await popupPromise;
+await popup.waitForLoadState();
+await expect(popup.getByRole('heading')).toBeVisible();
+
+// Open a new page in the same context
+const newPage = await context.newPage();
+await newPage.goto('/second-page');
+```
+
+## File Upload
+
+```typescript
+// Single file
+await page.getByLabel('Upload file').setInputFiles('./tests/fixtures/report.pdf');
+
+// Multiple files
+await page.getByLabel('Attachments').setInputFiles([
+  './tests/fixtures/file1.csv',
+  './tests/fixtures/file2.csv',
+]);
+
+// Buffer (no file on disk needed)
+await page.getByLabel('Upload').setInputFiles({
+  name: 'test.csv',
+  mimeType: 'text/csv',
+  buffer: Buffer.from('id,name\n1,Alice'),
+});
+
+// Clear file input
+await page.getByLabel('Upload').setInputFiles([]);
+```
+
+## File Download
+
+```typescript
+const downloadPromise = page.waitForEvent('download');
+await page.getByRole('button', { name: 'Export CSV' }).click();
+const download = await downloadPromise;
+
+// Save to disk
+await download.saveAs('./test-results/export.csv');
+
+// Read content
+const path = await download.path();
+const content = require('fs').readFileSync(path, 'utf-8');
+
+// Validate filename
+expect(download.suggestedFilename()).toBe('users-export.csv');
+```
+
+## Actions Reference
+
+```typescript
+// Click
+await locator.click();
+await locator.click({ button: 'right' });
+await locator.click({ modifiers: ['Shift'] });
+await locator.dblclick();
+
+// Hover
+await locator.hover();
+
+// Fill vs type
+await locator.fill('text');      // clears and fills — fast
+await locator.type('text');      // types char by char — for JS listeners
+
+// Check/uncheck
+await locator.check();
+await locator.uncheck();
+
+// Select option
+await locator.selectOption('value');
+await locator.selectOption({ label: 'Option label' });
+await locator.selectOption(['option1', 'option2']); // multi-select
+
+// Keyboard
+await page.keyboard.press('Enter');
+await page.keyboard.press('Control+A');
+await page.keyboard.type('Hello World');
+
+// Drag and Drop
+await page.locator('#source').dragTo(page.locator('#target'));
+```
+
+## Visual Testing
+
+```typescript
+// Screenshot comparison
+await expect(page).toHaveScreenshot('homepage.png');
+
+// First run creates baseline
+// Subsequent runs compare against baseline
+
+// Element screenshot
+await expect(page.locator('.chart')).toHaveScreenshot('chart.png', {
+  maxDiffPixelRatio: 0.02, // allow 2% pixel difference
+});
+```
+
+```typescript
+// playwright.config.ts
+expect: {
+  toHaveScreenshot: {
+    maxDiffPixelRatio: 0.05,
+  },
+},
+```
+
+Update baselines:
+```bash
+npx playwright test --update-snapshots
+```
+
+## `page.evaluate()` — Execute in Browser
+
+```typescript
+// Run JavaScript in browser context
+const title = await page.evaluate(() => document.title);
+
+// Pass argument into browser
+const count = await page.evaluate(
+  (selector) => document.querySelectorAll(selector).length,
+  '.item'
+);
+
+// Manipulate DOM
+await page.evaluate(() => {
+  document.querySelector('#banner')?.remove();
+});
+```
+
+## Flashcards
+
+**Q: What is `FrameLocator` and why is it preferred over `page.frame()`?**
+`FrameLocator` provides the same Locator API (auto-waiting, chaining) as the Page object. `page.frame()` returns a raw `Frame` reference with no auto-waiting.
+
+**Q: How do you handle a file download in a Docker/headless environment?**
+Use `page.waitForEvent('download')` before triggering the download, then `download.saveAs(path)` to write the file to disk. No browser UI required.
+
+**Q: What is the difference between `locator.fill()` and `locator.type()`?**
+`fill()` clears the input and sets the value instantly — preferred for speed. `type()` simulates keystrokes one-by-one — needed for inputs with character-by-character JS listeners.

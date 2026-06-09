@@ -1,0 +1,163 @@
+---
+title: "Authentication"
+description: "Storage state, token auth, session reuse, SSO, and OAuth flows in Playwright."
+section: "Authentication"
+tags: ["playwright", "authentication", "storage-state", "oauth", "sso"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## Storage State (Most Common Pattern)
+
+Log in once, save the browser state (cookies + localStorage), reuse it in every test. Eliminates repeated logins and speeds up suites.
+
+```typescript
+// auth.setup.ts — runs once before all tests
+import { test as setup } from '@playwright/test';
+
+setup('authenticate', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(process.env.TEST_EMAIL!);
+  await page.getByLabel('Password').fill(process.env.TEST_PASSWORD!);
+  await page.getByRole('button', { name: 'Login' }).click();
+  await page.waitForURL('/dashboard');
+
+  // Save cookies + localStorage
+  await page.context().storageState({ path: 'playwright/.auth/user.json' });
+});
+```
+
+```typescript
+// playwright.config.ts
+export default defineConfig({
+  projects: [
+    {
+      name: 'setup',
+      testMatch: '**/auth.setup.ts',
+    },
+    {
+      name: 'chromium',
+      use: {
+        storageState: 'playwright/.auth/user.json',
+      },
+      dependencies: ['setup'],
+    },
+  ],
+});
+```
+
+## Multiple Roles
+
+```typescript
+// admin.setup.ts
+setup('admin auth', async ({ page }) => {
+  // ... login as admin
+  await page.context().storageState({ path: 'playwright/.auth/admin.json' });
+});
+
+// viewer.setup.ts
+setup('viewer auth', async ({ page }) => {
+  // ... login as viewer
+  await page.context().storageState({ path: 'playwright/.auth/viewer.json' });
+});
+
+// playwright.config.ts
+projects: [
+  { name: 'admin-tests', use: { storageState: 'playwright/.auth/admin.json' }, dependencies: ['admin-setup'] },
+  { name: 'viewer-tests', use: { storageState: 'playwright/.auth/viewer.json' }, dependencies: ['viewer-setup'] },
+]
+```
+
+## Token Authentication (API-based login)
+
+Faster than UI login — get a JWT via API and inject it:
+
+```typescript
+// Via request fixture
+const response = await request.post('/api/auth/login', {
+  data: { email: 'user@test.com', password: 'pass' }
+});
+const { token } = await response.json();
+
+// Inject into localStorage
+await page.goto('/');
+await page.evaluate((t) => localStorage.setItem('auth_token', t), token);
+await page.reload();
+```
+
+## Session Authentication (Cookies)
+
+```typescript
+await page.context().addCookies([
+  {
+    name: 'session',
+    value: 'abc123',
+    domain: 'localhost',
+    path: '/',
+    httpOnly: true,
+    secure: false,
+  }
+]);
+```
+
+## SSO Login
+
+For SSO (e.g., Azure AD, Okta), mock the SSO callback or use a test IdP:
+
+```typescript
+// Option 1: Use Playwright to drive the SSO flow
+await page.getByRole('button', { name: 'Sign in with Google' }).click();
+const popup = await page.waitForEvent('popup');
+await popup.getByLabel('Email').fill(process.env.GOOGLE_TEST_EMAIL!);
+// ... complete SSO flow
+
+// Option 2: Intercept and mock the SAML/OIDC callback
+await page.route('**/auth/callback*', async route => {
+  await route.fulfill({
+    status: 302,
+    headers: { Location: '/dashboard' },
+  });
+  // Also inject a valid session cookie
+});
+```
+
+## OAuth 2.0 (Client Credentials for API)
+
+```typescript
+const tokenRes = await request.post('https://auth.example.com/oauth/token', {
+  form: {
+    grant_type: 'client_credentials',
+    client_id: process.env.CLIENT_ID!,
+    client_secret: process.env.CLIENT_SECRET!,
+    scope: 'read:users',
+  }
+});
+const { access_token } = await tokenRes.json();
+
+// Use token for subsequent API requests
+const apiRes = await request.get('/api/users', {
+  headers: { Authorization: `Bearer ${access_token}` }
+});
+```
+
+## Context Isolation per Test
+
+Each test gets a fresh context by default. To share auth state within a test while isolating from others:
+
+```typescript
+test.use({ storageState: 'playwright/.auth/admin.json' });
+
+test('admin can delete user', async ({ page }) => {
+  // already logged in as admin
+});
+```
+
+## Flashcards
+
+**Q: What does `storageState` save?**
+Cookies and localStorage for the current context. This is enough to preserve most session-based and token-based logins.
+
+**Q: Why prefer API login over UI login in setup?**
+API login is 5–10× faster, not subject to UI flakiness, and doesn't count against test flakiness metrics.
+
+**Q: How do you handle different user roles in Playwright?**
+Create separate setup projects for each role, saving to different `.json` files, and configure each test project to use the correct `storageState`.

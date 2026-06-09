@@ -9,7 +9,7 @@ const createSchema = z.object({
   title: z.string().trim().min(1, "Title is required"),
   channel: z.string().trim().min(1, "Channel is required"),
   topic: z.string().trim().min(1, "Topic is required"),
-  durationMinutes: z.coerce.number().int().min(1).max(600),
+  durationMinutes: z.coerce.number().int().min(1).max(2880),
   transcript: z.string().trim().min(40, "Paste at least a few sentences of transcript"),
 });
 

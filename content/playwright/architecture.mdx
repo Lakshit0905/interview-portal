@@ -1,0 +1,70 @@
+---
+title: "Architecture"
+description: "What Playwright is, how it works under the hood, and how it compares to Selenium."
+section: "Architecture"
+tags: ["playwright", "architecture", "auto-wait", "browsers"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## What is Playwright
+
+Playwright is a modern end-to-end browser automation framework built by Microsoft. It enables reliable, cross-browser testing across Chromium, Firefox, and WebKit from a single API.
+
+## Architecture
+
+Playwright communicates with browsers over the **CDP (Chrome DevTools Protocol)** for Chromium and uses native browser protocols for Firefox and WebKit. Each browser runs in a separate OS process, giving full isolation.
+
+```
+Test Code → Playwright Node.js Client → WebSocket → Browser Server Process → Browser
+```
+
+Key layers:
+- **BrowserType** — factory that launches or connects to a browser
+- **Browser** — a browser instance (can have multiple contexts)
+- **BrowserContext** — an isolated incognito-like session
+- **Page** — a single browser tab
+- **Locator** — a live query that retries automatically
+
+## Advantages over Selenium
+
+| Feature | Playwright | Selenium |
+|---|---|---|
+| Auto-waiting | Built-in on every action | Manual `WebDriverWait` |
+| Network interception | Native `page.route()` | Needs proxy (BrowserMob) |
+| Multiple browsers | Chromium, Firefox, WebKit | Same |
+| Context isolation | Per-test by default | Shared unless configured |
+| Speed | Fast (direct protocol) | Slower (HTTP JSON Wire) |
+| Modern JS support | First-class async/await | Callback or sync wrappers |
+| Trace & debugging | Built-in trace viewer | External tools |
+
+## Supported Browsers
+
+- **Chromium** — Chrome and Edge (via Chromium engine)
+- **Firefox** — Full Firefox support
+- **WebKit** — Safari engine (macOS and Linux)
+
+## Auto Wait Mechanism
+
+Before performing any action, Playwright checks that the element:
+
+1. Is **attached** to the DOM
+2. Is **visible** (not hidden via CSS)
+3. Is **stable** (not animating)
+4. **Receives events** (not covered by another element)
+5. Is **enabled** (not disabled)
+
+This eliminates the need for `sleep()` or explicit waits in most cases.
+
+## Learning Roadmap
+
+### Beginner
+Introduction → Installation → Project Structure → Browser Management → Locators → Basic Actions → Assertions → Waiting Strategies → Forms → Screenshots
+
+### Intermediate
+Page Object Model → Fixtures → Test Data → API Testing → Authentication → Frames → Multiple Tabs → File Upload/Download → Network Interception → Parallel Execution
+
+### Advanced
+Custom Fixtures → Framework Design → CI/CD → Docker → Cross Browser → Performance → Reporting → Visual Testing → Contract Testing → Cloud Execution
+
+### Expert
+Enterprise Architecture → Test Scalability → Flaky Test Detection → Observability → Test Analytics → Microservices Testing → GenAI Assisted Testing → Distributed Execution → Test Governance → Automation Strategy

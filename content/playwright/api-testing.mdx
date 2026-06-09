@@ -1,0 +1,182 @@
+---
+title: "API Testing with Playwright"
+description: "APIRequestContext, HTTP methods, response validation, schema validation, and auth."
+section: "API Testing"
+tags: ["playwright", "api-testing", "request", "rest"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## APIRequestContext
+
+Playwright includes a built-in HTTP client via `request` fixture — no need for axios or node-fetch in tests.
+
+```typescript
+test('GET users', async ({ request }) => {
+  const res = await request.get('https://api.example.com/users');
+  expect(res.status()).toBe(200);
+  const body = await res.json();
+  expect(body).toHaveLength(5);
+});
+```
+
+## HTTP Methods
+
+```typescript
+// GET
+const res = await request.get('/api/users');
+const users = await res.json();
+
+// POST
+const res = await request.post('/api/users', {
+  data: { name: 'Alice', email: 'alice@test.com' }
+});
+expect(res.status()).toBe(201);
+
+// PUT
+const res = await request.put(`/api/users/${id}`, {
+  data: { name: 'Alice Updated' }
+});
+
+// PATCH
+const res = await request.patch(`/api/users/${id}`, {
+  data: { name: 'Alice Patched' }
+});
+
+// DELETE
+const res = await request.delete(`/api/users/${id}`);
+expect(res.status()).toBe(204);
+```
+
+## Authentication
+
+```typescript
+// Bearer token
+const res = await request.get('/api/secure', {
+  headers: { Authorization: `Bearer ${token}` }
+});
+
+// Basic auth
+const res = await request.get('/api/admin', {
+  headers: {
+    Authorization: 'Basic ' + Buffer.from('user:pass').toString('base64')
+  }
+});
+
+// API key
+const res = await request.get('/api/data', {
+  headers: { 'x-api-key': process.env.API_KEY! }
+});
+```
+
+## Global Request Context
+
+Configure a base URL and shared headers for all requests:
+
+```typescript
+// playwright.config.ts
+use: {
+  baseURL: 'https://api.example.com',
+  extraHTTPHeaders: {
+    'Accept': 'application/json',
+    'x-api-version': 'v2',
+  },
+}
+
+// In test — baseURL is prepended automatically
+const res = await request.get('/users'); // → https://api.example.com/users
+```
+
+## Response Validation
+
+```typescript
+const res = await request.post('/api/users', { data: { name: 'Bob' } });
+
+// Status
+expect(res.status()).toBe(201);
+expect(res.ok()).toBeTruthy(); // 200–299
+
+// Headers
+expect(res.headers()['content-type']).toContain('application/json');
+
+// Body
+const user = await res.json();
+expect(user.id).toBeDefined();
+expect(user.name).toBe('Bob');
+expect(user.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}/);
+```
+
+## Schema Validation
+
+```typescript
+import { z } from 'zod';
+
+const UserSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  email: z.string().email(),
+  role: z.enum(['admin', 'viewer']),
+});
+
+test('user response matches schema', async ({ request }) => {
+  const res = await request.get('/api/users/1');
+  const body = await res.json();
+  const result = UserSchema.safeParse(body);
+  expect(result.success).toBeTruthy();
+});
+```
+
+## Combining API + UI
+
+Use `request` to seed data, then verify in the UI:
+
+```typescript
+test('new user appears in table', async ({ page, request }) => {
+  // Arrange: create user via API
+  const res = await request.post('/api/users', {
+    data: { name: 'Charlie', email: 'charlie@test.com' }
+  });
+  const user = await res.json();
+
+  // Act: load the page
+  await page.goto('/admin/users');
+
+  // Assert: user appears
+  await expect(page.getByRole('row', { name: 'Charlie' })).toBeVisible();
+
+  // Cleanup
+  await request.delete(`/api/users/${user.id}`);
+});
+```
+
+## Sending Form Data
+
+```typescript
+await request.post('/api/upload', {
+  multipart: {
+    file: { name: 'report.csv', mimeType: 'text/csv', buffer: Buffer.from('a,b,c') },
+    metadata: JSON.stringify({ category: 'reports' }),
+  }
+});
+```
+
+## Cheat Sheet
+
+| Method | Example |
+|---|---|
+| GET | `request.get('/api/items')` |
+| POST JSON | `request.post('/path', { data: {...} })` |
+| Auth header | `headers: { Authorization: 'Bearer token' }` |
+| Check status | `expect(res.status()).toBe(200)` |
+| Parse body | `const data = await res.json()` |
+| Form upload | `multipart: { field: value }` |
+
+## Flashcards
+
+**Q: What is `APIRequestContext` in Playwright?**
+A built-in HTTP client available via the `request` fixture. It supports all HTTP methods, custom headers, cookies, and multipart uploads.
+
+**Q: How do you validate a response schema in Playwright API tests?**
+Use a schema library like `zod` or `joi` and parse the response body. Check `result.success` for zod or catch validation errors.
+
+**Q: What is the benefit of seeding data via API before UI tests?**
+It's faster and more reliable than driving the UI to create test state. Keeps tests independent and avoids cascading failures from UI issues.

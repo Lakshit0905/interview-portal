@@ -189,79 +189,137 @@ function sentencesOf(transcript: string): string[] {
     .replace(/\s+/g, " ")
     .split(/(?<=[.!?])\s+/)
     .map((s) => s.trim())
-    .filter((s) => s.length > 25);
+    .filter((s) => s.length > 25 && !/\?\s*$/.test(s));
 }
 
-/** Deterministic offline generator — composes a structured lesson from the transcript and metadata. */
-function offlineVideoLesson(title: string, topic: string, transcript: string): Omit<GeneratedVideoLesson, "enabled"> {
-  const sentences = sentencesOf(transcript);
-  const lead = sentences.slice(0, 6);
-  const pick = (i: number, fallback: string) => lead[i] ?? fallback;
+/** Pick evenly-spaced items across an array so all sections of the transcript are represented. */
+function spread<T>(arr: T[], count: number): T[] {
+  if (arr.length <= count) return arr;
+  return Array.from({ length: count }, (_, i) => arr[Math.round((i / (count - 1)) * (arr.length - 1))]);
+}
 
-  const summary = (lead.slice(0, 2).join(" ") || transcript.slice(0, 240)).slice(0, 360);
+/** Extract a short label from a sentence (first 4–7 words, title-cased). */
+function labelOf(sentence: string): string {
+  const words = sentence.replace(/[^a-zA-Z0-9 ]/g, "").split(/\s+/).slice(0, 6);
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
+/**
+ * Deterministic offline generator — extracts structured study material from the
+ * full transcript instead of just its first few sentences. Samples evenly across
+ * the transcript so all parts of the video are represented in every output section.
+ */
+function offlineVideoLesson(title: string, topic: string, transcript: string): Omit<GeneratedVideoLesson, "enabled"> {
+  const all = sentencesOf(transcript);
+  const total = all.length;
+
+  // ── Summary ─────────────────────────────────────────────────────────────────
+  const summaryParts = spread(all, 3);
+  const summary = summaryParts.join(" ").slice(0, 420);
+
+  // ── Notes ────────────────────────────────────────────────────────────────────
+  // Divide the transcript into three logical thirds: intro / core / wrap-up
+  const third = Math.ceil(total / 3);
+  const opening = all.slice(0, third);
+  const core    = all.slice(third, third * 2);
+  const closing = all.slice(third * 2);
+
+  const bulletBlock = (items: string[]) =>
+    items.length ? items.map((s) => `- ${s}`).join("\n") : `- (no content extracted for this section)`;
 
   const notes =
 `## Overview
-${pick(0, `This lesson covers "${title}", a ${topic} topic worth drilling before interviews.`)}
+${bulletBlock(opening)}
 
-## Key points
-${lead.map((s) => `- ${s}`).join("\n") || `- Revisit the source video for "${title}" and paste its transcript to get fuller notes.`}
+## Core Concepts
+${bulletBlock(core)}
 
-## Why it matters for interviews
-Be ready to explain the core idea behind "${title}" out loud, walk through a concrete example, and discuss trade-offs an interviewer might probe on.`;
+## Key Takeaways
+${bulletBlock(closing)}
 
-  const concepts: VideoConcept[] = lead.slice(0, 4).map((s, i) => ({
+## Why It Matters for Interviews
+Being fluent in **${topic}** means explaining the core mechanism clearly, giving a concrete example, and calling out the trade-offs — not just reciting a definition.`;
+
+  // ── Concepts ─────────────────────────────────────────────────────────────────
+  const conceptSentences = spread(all, 6);
+  const concepts: VideoConcept[] = conceptSentences.map((s, i) => ({
     id: `oc${i + 1}`,
-    term: `Key idea ${i + 1}`,
+    term: labelOf(s),
     explanation: s,
   }));
-  if (!concepts.length) {
-    concepts.push({ id: "oc1", term: title, explanation: `Core concept introduced in "${title}" — paste a transcript for richer, AI-extracted concepts.` });
-  }
 
+  // ── Q&A ──────────────────────────────────────────────────────────────────────
+  // Pair each Q with a sentence drawn from the relevant third of the transcript.
+  const qPick = (idx: number) => all[Math.min(idx, all.length - 1)] ?? "";
   const questions: VideoQA[] = [
-    { id: "oq1", question: `In your own words, what is the main idea behind "${title}"?`, answer: pick(0, `Summarize the central claim of "${title}" and why it matters for ${topic}.`) },
-    { id: "oq2", question: `What's a concrete example or scenario from this video that illustrates the idea?`, answer: pick(1, `Recall a specific example from the video and explain what it demonstrated.`) },
-    { id: "oq3", question: `What trade-off or limitation did the video call out?`, answer: pick(2, `Identify a trade-off, gotcha, or anti-pattern mentioned and why it matters in practice.`) },
-    { id: "oq4", question: `How would you apply this in a real ${topic} interview answer?`, answer: `Connect "${title}" to a project you've worked on, and be ready to explain the "why," not just the "what."` },
+    {
+      id: "oq1",
+      question: `What is the central idea introduced in "${title}"?`,
+      answer: qPick(0),
+    },
+    {
+      id: "oq2",
+      question: `What is explained in the middle section of this video?`,
+      answer: qPick(Math.floor(total * 0.35)),
+    },
+    {
+      id: "oq3",
+      question: `What does the video cover in its second half?`,
+      answer: qPick(Math.floor(total * 0.6)),
+    },
+    {
+      id: "oq4",
+      question: `What is the key takeaway or conclusion of "${title}"?`,
+      answer: qPick(Math.max(0, total - 2)),
+    },
+    {
+      id: "oq5",
+      question: `How would you apply what you learned here in a ${topic} interview?`,
+      answer: `Connect the core concept to a real scenario: explain what it is, why it matters, and how you have used or would use it in practice. Use a concrete example from this video or your own work.`,
+    },
   ];
 
-  const flashcards: VideoFlashcard[] = lead.slice(0, 4).map((s, i) => ({
+  // ── Flashcards ───────────────────────────────────────────────────────────────
+  const flashSentences = spread(all, 6);
+  const flashcards: VideoFlashcard[] = flashSentences.map((s, i) => ({
     id: `of${i + 1}`,
-    front: `${title} — point ${i + 1}`,
+    front: labelOf(s) + "?",
     back: s,
   }));
-  if (!flashcards.length) {
-    flashcards.push({ id: "of1", front: title, back: `Set ANTHROPIC_API_KEY and re-generate, or paste a transcript for richer flashcards.` });
+
+  // ── Revision notes ────────────────────────────────────────────────────────────
+  const revisionSentences = spread(all, Math.min(total, 10));
+  const revisionNotes = revisionSentences.map((s) => `- ${s}`).join("\n");
+
+  // ── Cheat sheet ───────────────────────────────────────────────────────────────
+  const cheatRows = spread(all, 6).map((s) => `| ${labelOf(s)} | ${s} |`).join("\n");
+  const cheatSheet =
+`| Concept | Explanation |
+|---|---|
+${cheatRows}`;
+
+  // ── MCQ quiz ──────────────────────────────────────────────────────────────────
+  // Build distractors from other sentences in the transcript.
+  function mcqDistractors(correct: string): string[] {
+    const pool = all.filter((s) => s !== correct);
+    const picks = spread(pool, 3);
+    return picks.length === 3 ? picks : [...picks, "None of the above", "All of the above"].slice(0, 3);
   }
 
-  const revisionNotes = lead.length
-    ? lead.map((s) => `- ${s}`).join("\n")
-    : `- Revisit "${title}" — paste its transcript to generate richer revision notes.`;
-
-  const cheatSheet =
-`| Topic | Takeaway |
-|---|---|
-| ${topic} | ${pick(0, title)} |
-| Watch for | ${pick(1, "the trade-offs and edge cases called out in the video")} |
-| Practice | Explain "${title}" out loud in under 90 seconds |`;
-
-  const mcqs: VideoMCQ[] = [
-    {
-      id: "om1",
-      question: `What is "${title}" primarily about?`,
-      options: [pick(0, `The core idea covered in the video`), "An unrelated marketing topic", "A history lecture with no technical content", "A product announcement only"],
-      correctIndex: 0,
-      explanation: `The video's central focus is summarized in its opening points — re-anchor on those when answering interview questions about ${topic}.`,
-    },
-    {
-      id: "om2",
-      question: `Which best describes the practical takeaway from this lesson?`,
-      options: ["Memorize the title verbatim", pick(1, `Apply the core idea to real ${topic} scenarios`), "Skip it — it's not interview-relevant", "Only relevant to beginners"],
-      correctIndex: 1,
-      explanation: `Interview answers land best when you connect the idea to a concrete scenario rather than reciting definitions.`,
-    },
-  ];
+  const mcqSeeds = spread(all, 4);
+  const mcqs: VideoMCQ[] = mcqSeeds.map((seed, i) => {
+    const distractors = mcqDistractors(seed);
+    const correctIndex = Math.floor(Math.random() * 4); // randomise correct slot
+    const opts = [...distractors];
+    opts.splice(correctIndex, 0, seed);
+    return {
+      id: `om${i + 1}`,
+      question: `Which statement from "${title}" is accurate?`,
+      options: opts.slice(0, 4),
+      correctIndex,
+      explanation: seed,
+    };
+  });
 
   return { summary, notes, concepts, questions, flashcards, revisionNotes, cheatSheet, mcqs };
 }

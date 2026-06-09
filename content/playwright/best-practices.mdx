@@ -1,0 +1,138 @@
+---
+title: "Best Practices"
+description: "Common mistakes, important concepts, framework design principles, and mini-project ideas."
+section: "Best Practices"
+tags: ["playwright", "best-practices", "framework-design", "enterprise"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## Common Mistakes to Avoid
+
+| Mistake | Problem | Fix |
+|---|---|---|
+| XPath everywhere | Brittle — breaks on DOM changes | Use `getByRole` / `getByLabel` |
+| Hard-coded `waitForTimeout` | Slow, non-deterministic | Use `waitForResponse` or auto-wait |
+| Poor test isolation | Flaky parallel runs | Fresh context + unique test data per test |
+| Shared test data | Race conditions in parallel | Scope data per test with unique IDs |
+| Ignoring Trace Viewer | Slow debugging | Enable `trace: 'on-first-retry'` in CI |
+| No retry strategy | One-off flakes fail the build | `retries: 2` in CI |
+| Weak locator design | Fragile tests | Use accessible locators, not position-based |
+| Large page objects | Hard to maintain | Split by feature, max 15 methods per class |
+| Environment-specific test data | Works only on one env | Use `process.env` + seed data via API |
+| No CI integration | Late feedback | Add Playwright to every PR |
+
+## Important Concepts Checklist
+
+- [ ] **Auto Waiting** — understand what 5 conditions are checked before every action
+- [ ] **Locator Strategy** — prefer `getByRole` > `getByLabel` > `getByTestId` > CSS > XPath
+- [ ] **Browser Context** — know how to create isolated sessions and reuse auth state
+- [ ] **Test Isolation** — each test starts clean with its own context and data
+- [ ] **Fixtures** — use for setup/teardown, dependency injection, and POM integration
+- [ ] **Page Object Model** — encapsulate interactions, not assertions
+- [ ] **Network Mocking** — `route.fulfill`, `route.continue`, `route.abort`
+- [ ] **Authentication Reuse** — `storageState` + setup project
+- [ ] **Parallel Execution** — workers, projects, sharding, isolation
+- [ ] **Trace Viewer** — enable in CI, know how to read timelines
+- [ ] **Reporting** — HTML, Allure, blob merge for shards
+- [ ] **CI/CD** — GitHub Actions workflow with artifact upload
+
+## Enterprise Framework Design
+
+### Folder Structure
+```
+playwright-framework/
+├── tests/
+│   ├── e2e/
+│   ├── api/
+│   └── visual/
+├── pages/
+│   ├── BasePage.ts
+│   ├── LoginPage.ts
+│   └── components/
+├── fixtures/
+│   ├── auth.setup.ts
+│   └── index.ts
+├── utils/
+│   ├── api-client.ts
+│   ├── data-factory.ts
+│   └── logger.ts
+├── config/
+│   ├── environments.ts
+│   └── test-data.ts
+├── reporters/
+│   └── custom-reporter.ts
+└── playwright.config.ts
+```
+
+### Layered Architecture
+```
+Test Layer     — specs, assertions, test scenarios
+───────────────────────────────────────────────────
+Page Layer     — Page Objects, components
+───────────────────────────────────────────────────
+Fixture Layer  — setup, teardown, DI
+───────────────────────────────────────────────────
+Utility Layer  — API client, data factory, logger
+───────────────────────────────────────────────────
+Config Layer   — environments, credentials, timeouts
+```
+
+### Configuration Management
+
+```typescript
+// config/environments.ts
+const envConfig = {
+  local:   { baseURL: 'http://localhost:3000', api: 'http://localhost:8080' },
+  staging: { baseURL: 'https://staging.app.com', api: 'https://api-staging.app.com' },
+  prod:    { baseURL: 'https://app.com', api: 'https://api.app.com' },
+};
+export const config = envConfig[process.env.TEST_ENV as keyof typeof envConfig ?? 'local'];
+```
+
+### Data Factory
+
+```typescript
+// utils/data-factory.ts
+import { faker } from '@faker-js/faker';
+
+export const UserFactory = {
+  create: (overrides: Partial<User> = {}): User => ({
+    name: faker.person.fullName(),
+    email: faker.internet.email(),
+    role: 'viewer',
+    ...overrides,
+  }),
+};
+```
+
+## Real-World Scenarios & Solutions
+
+| Scenario | Root Cause | Solution |
+|---|---|---|
+| Login works locally, fails in CI | Hard-coded URLs, timing | Use env vars, enable retries |
+| Element visible but click fails | Covered by overlay | Wait for overlay to disappear |
+| Pass alone, fail in parallel | Shared test data | Unique IDs per test, no shared state |
+| Random timeout in checkout | Race condition | `waitForResponse` after submit |
+| Flaky API failures | External dependency | Mock the API with `page.route` |
+| File download in Docker | No real filesystem path | `download.saveAs(path)`, use `/tmp` |
+| SSO authentication | Third-party redirect | Use `storageState` from headful run |
+| Visual differences across browsers | Font rendering | Per-browser baselines, allow pixel ratio |
+
+## Mini Projects (Practice)
+
+1. **E-Commerce Automation** — POM, auth state, cart + checkout flow, API seeding
+2. **Banking Web App** — multi-role auth, network mocking, accessibility assertions
+3. **Playwright API Testing Framework** — REST CRUD, schema validation, data cleanup
+4. **Enterprise Multi-Environment Framework** — config per env, data factory, Allure
+5. **Visual Regression Framework** — screenshot baselines, cross-browser diffs, CI pipeline
+6. **Playwright + Docker + GitHub Actions** — containerised execution, sharding, report merge
+
+## Revision Checklist
+
+```
+Locators         ✓ Assertions      ✓ Wait Strategies  ✓
+Browser Context  ✓ Frames          ✓ API Testing       ✓
+Authentication   ✓ Fixtures        ✓ POM               ✓
+Network Mocking  ✓ Docker          ✓ GitHub Actions    ✓
+Reporting        ✓ Debugging       ✓ Framework Design  ✓
+```

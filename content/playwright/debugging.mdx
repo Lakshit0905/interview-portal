@@ -1,0 +1,144 @@
+---
+title: "Debugging"
+description: "PWDEBUG, Trace Viewer, screenshots, videos, logs, and the Playwright Inspector."
+section: "Debugging"
+tags: ["playwright", "debugging", "trace-viewer", "inspector"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## Playwright Inspector (PWDEBUG)
+
+Launch the visual debugger — steps through actions, highlights elements, shows the selector explorer:
+
+```bash
+PWDEBUG=1 npx playwright test my.spec.ts
+```
+
+- Step through test actions one at a time
+- Hover elements to see their locators
+- Use the Pick Locator button to generate selectors
+
+## Trace Viewer
+
+The most powerful debugging tool — captures a full timeline of every test action with screenshots, network logs, and console output.
+
+### Enable traces
+```typescript
+// playwright.config.ts
+use: {
+  trace: 'on-first-retry',  // capture on first retry (recommended for CI)
+  // trace: 'on',           // always capture
+  // trace: 'retain-on-failure', // only for failed tests
+}
+```
+
+### View a trace
+```bash
+npx playwright show-trace test-results/trace.zip
+```
+
+Or upload to `https://trace.playwright.dev`.
+
+### What the trace shows
+- **Action timeline** — every `click`, `fill`, `goto`, with timestamps
+- **Before/after screenshots** for each action
+- **Network tab** — all requests and responses
+- **Console logs** from the browser
+- **Source** — the test file with the failing line highlighted
+
+## Screenshots
+
+```typescript
+// Manual screenshot
+await page.screenshot({ path: 'debug.png' });
+await page.screenshot({ path: 'full.png', fullPage: true });
+
+// Screenshot a specific element
+await page.locator('.modal').screenshot({ path: 'modal.png' });
+
+// Automatic on failure
+// playwright.config.ts
+use: {
+  screenshot: 'only-on-failure',
+  // screenshot: 'on',
+}
+```
+
+## Video Recording
+
+```typescript
+// playwright.config.ts
+use: {
+  video: 'on-first-retry',
+  // video: 'on',
+  // video: 'retain-on-failure',
+}
+```
+
+Videos are saved in `test-results/` as `.webm` files.
+
+## Console Logs
+
+Listen to browser console output in tests:
+
+```typescript
+page.on('console', msg => {
+  if (msg.type() === 'error') {
+    console.error('[Browser Error]', msg.text());
+  }
+});
+
+page.on('pageerror', err => {
+  console.error('[Page Error]', err.message);
+});
+```
+
+## Debugging in VS Code
+
+Install the **Playwright Test for VS Code** extension:
+- Run/debug tests from the gutter
+- Set breakpoints in test files
+- Use the Playwright Test Explorer panel
+
+```typescript
+// Pause test execution at a point
+await page.pause(); // opens Inspector
+```
+
+## Logging and Steps
+
+```typescript
+test('checkout', async ({ page }) => {
+  await test.step('navigate to shop', async () => {
+    await page.goto('/shop');
+  });
+
+  await test.step('add item to cart', async () => {
+    await page.getByRole('button', { name: 'Add to Cart' }).click();
+  });
+
+  // Steps appear in the HTML report with timing
+});
+```
+
+## Common Debug Scenarios
+
+| Symptom | Tool to Use |
+|---|---|
+| Test times out | Trace viewer — see which action hung |
+| Wrong element clicked | PWDEBUG inspector — step through and verify locator |
+| Unexpected page state | Screenshot on failure + page.pause() |
+| Missing network call | Trace viewer network tab |
+| JS error on page | `page.on('pageerror', ...)` |
+| Slow test | Trace viewer timeline |
+
+## Flashcards
+
+**Q: What is `trace: 'on-first-retry'` and why is it recommended for CI?**
+It captures a full trace only when a test fails and retries — so you have a recording of the failure without the overhead of recording every passing test.
+
+**Q: What does `await page.pause()` do?**
+It pauses test execution and opens the Playwright Inspector, letting you interactively step through, inspect elements, and run commands.
+
+**Q: What information does Trace Viewer show?**
+Action timeline with timestamps, before/after screenshots per action, browser console logs, all network requests and responses, and source code with the failing line.

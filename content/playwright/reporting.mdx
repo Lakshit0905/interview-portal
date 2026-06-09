@@ -1,0 +1,146 @@
+---
+title: "Reporting"
+description: "HTML reports, Allure, custom reporters, and Trace Viewer integration."
+section: "Reporting"
+tags: ["playwright", "reporting", "allure", "html-report", "trace"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## Built-in HTML Report
+
+```typescript
+// playwright.config.ts
+reporter: [
+  ['html', { outputFolder: 'playwright-report', open: 'never' }],
+  ['list'],    // console output during run
+  ['json', { outputFile: 'results.json' }],
+],
+```
+
+```bash
+npx playwright test
+npx playwright show-report  # opens HTML report in browser
+```
+
+## Multi-reporter Setup
+
+```typescript
+reporter: process.env.CI
+  ? [
+      ['github'],         // GitHub Actions annotations
+      ['blob'],           // for shard merging
+      ['json', { outputFile: 'results.json' }],
+    ]
+  : [
+      ['html', { open: 'on-failure' }],
+      ['list'],
+    ],
+```
+
+## Allure Reporter
+
+```bash
+npm install --save-dev allure-playwright
+```
+
+```typescript
+// playwright.config.ts
+reporter: [['allure-playwright']],
+```
+
+```bash
+npx playwright test
+allure generate allure-results --clean -o allure-report
+allure open allure-report
+```
+
+**Allure annotations:**
+```typescript
+import { test } from '@playwright/test';
+import { allure } from 'allure-playwright';
+
+test('login test', async ({ page }) => {
+  allure.label('feature', 'Authentication');
+  allure.severity('critical');
+  allure.step('Navigate to login', async () => {
+    await page.goto('/login');
+  });
+});
+```
+
+## Trace Viewer in Reports
+
+Enable trace collection to investigate failures directly from the HTML report:
+
+```typescript
+// playwright.config.ts
+use: {
+  trace: 'on-first-retry',
+  screenshot: 'only-on-failure',
+  video: 'retain-on-failure',
+},
+```
+
+The HTML report links directly to the trace, screenshots, and video for each failed test.
+
+## Custom Reporter
+
+```typescript
+// reporters/custom-reporter.ts
+import { Reporter, TestCase, TestResult, FullConfig } from '@playwright/test/reporter';
+
+class CustomReporter implements Reporter {
+  onBegin(config: FullConfig) {
+    console.log(`Starting: ${config.projects.length} projects`);
+  }
+
+  onTestEnd(test: TestCase, result: TestResult) {
+    if (result.status === 'failed') {
+      console.log(`FAILED: ${test.title} — ${result.error?.message}`);
+    }
+  }
+
+  onEnd(result: { status: string }) {
+    console.log(`Run ${result.status}`);
+  }
+}
+
+export default CustomReporter;
+```
+
+```typescript
+// playwright.config.ts
+reporter: [['./reporters/custom-reporter.ts']],
+```
+
+## Merge Reports (Sharding)
+
+After sharded CI runs, merge blob reports into a single HTML report:
+
+```bash
+# Each shard produces a blob-report/
+# After all shards finish:
+npx playwright merge-reports --reporter=html ./all-blob-reports
+```
+
+## Reporting Cheat Sheet
+
+| Reporter | Use Case |
+|---|---|
+| `html` | Local dev — visual summary |
+| `list` | CI console output |
+| `github` | GitHub Actions PR annotations |
+| `json` | Feed results to external dashboards |
+| `blob` | Sharded CI — merge later |
+| `allure-playwright` | Rich dashboards with history & trends |
+
+## Flashcards
+
+**Q: What is the `blob` reporter used for?**
+It stores raw test results in a compact binary format. Multiple blob reports from sharded CI runs can be merged into a single HTML report.
+
+**Q: How do you attach a trace to a failed test's HTML report?**
+Set `trace: 'on-first-retry'` or `'retain-on-failure'` in `use`. Playwright attaches the trace zip to the report automatically.
+
+**Q: What is the `github` reporter?**
+It outputs annotations directly to GitHub Actions, marking failed tests inline in the PR diff view.

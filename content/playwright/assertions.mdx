@@ -1,0 +1,143 @@
+---
+title: "Assertions"
+description: "Web-first assertions, soft assertions, retry logic, and the expect API in Playwright."
+section: "Assertions"
+tags: ["playwright", "assertions", "expect", "soft-assertions"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## Web-first Assertions
+
+Playwright's `expect()` assertions are **web-first** — they automatically retry until the condition is met or a timeout is reached. This eliminates flaky `waitFor` boilerplate.
+
+```typescript
+// These all retry automatically:
+await expect(page.getByRole('button', { name: 'Submit' })).toBeVisible();
+await expect(page.locator('.toast')).toHaveText('Saved successfully');
+await expect(page).toHaveURL('/dashboard');
+await expect(page).toHaveTitle('My App');
+```
+
+## Common Expect Matchers
+
+### Element State
+```typescript
+await expect(locator).toBeVisible()
+await expect(locator).toBeHidden()
+await expect(locator).toBeEnabled()
+await expect(locator).toBeDisabled()
+await expect(locator).toBeChecked()
+await expect(locator).toBeFocused()
+await expect(locator).toBeEmpty()
+await expect(locator).toBeAttached()
+```
+
+### Content
+```typescript
+await expect(locator).toHaveText('exact text')
+await expect(locator).toContainText('partial text')
+await expect(locator).toHaveValue('input value')
+await expect(locator).toHaveAttribute('href', '/home')
+await expect(locator).toHaveClass(/active/)
+await expect(locator).toHaveCount(3)
+```
+
+### Page
+```typescript
+await expect(page).toHaveURL('https://example.com/page')
+await expect(page).toHaveURL(/dashboard/)
+await expect(page).toHaveTitle('Page Title')
+```
+
+## Soft Assertions
+
+Soft assertions **do not stop the test on failure** — they collect all failures and report at the end. Useful when you want to validate multiple things in a single test run.
+
+```typescript
+test('validate profile page', async ({ page }) => {
+  await page.goto('/profile');
+
+  await expect.soft(page.getByTestId('name')).toHaveText('John');
+  await expect.soft(page.getByTestId('email')).toHaveText('john@example.com');
+  await expect.soft(page.getByTestId('avatar')).toBeVisible();
+
+  // Test continues even if above assertions fail
+  // All failures reported at end
+});
+```
+
+## Retry Assertions
+
+Control assertion timeout per assertion:
+
+```typescript
+// Default timeout from config (usually 5000ms)
+await expect(locator).toBeVisible();
+
+// Override for slow elements:
+await expect(locator).toBeVisible({ timeout: 10_000 });
+```
+
+Configure globally in `playwright.config.ts`:
+```typescript
+expect: {
+  timeout: 5000
+}
+```
+
+## Negation
+
+```typescript
+await expect(locator).not.toBeVisible()
+await expect(locator).not.toHaveText('Error')
+await expect(page).not.toHaveURL('/login')
+```
+
+## Custom Assertions (Matchers)
+
+Extend `expect` with your own matchers:
+
+```typescript
+// playwright.config.ts or a setup file
+expect.extend({
+  async toHaveErrorMessage(locator, expected: string) {
+    const actual = await locator.getAttribute('aria-errormessage');
+    const pass = actual === expected;
+    return {
+      pass,
+      message: () => `Expected aria-errormessage: "${expected}", got "${actual}"`,
+    };
+  },
+});
+
+// Usage:
+await expect(emailInput).toHaveErrorMessage('Invalid email format');
+```
+
+## Expect API Summary
+
+| Matcher | Use |
+|---|---|
+| `toBeVisible()` | Element is in DOM and visible |
+| `toHaveText()` | Exact text content match |
+| `toContainText()` | Substring match |
+| `toHaveValue()` | Input field value |
+| `toHaveURL()` | Page URL (string or regex) |
+| `toHaveCount()` | Number of matched elements |
+| `toBeChecked()` | Checkbox/radio state |
+| `toHaveAttribute()` | HTML attribute value |
+
+## Flashcards
+
+**Q: What is the difference between hard and soft assertions?**
+Hard assertions (`expect`) stop the test immediately on failure. Soft assertions (`expect.soft`) continue the test and report all failures at the end.
+
+**Q: Why are Playwright assertions called "web-first"?**
+They automatically retry with built-in polling until the assertion passes or times out, avoiding the need for explicit waits before assertions.
+
+**Q: How do you assert on multiple elements?**
+Use `toHaveCount()` for count, or chain with `.all()` for per-item checks:
+```typescript
+const items = page.locator('.list-item');
+await expect(items).toHaveCount(5);
+```

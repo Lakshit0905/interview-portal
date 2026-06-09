@@ -1,0 +1,159 @@
+---
+title: "Fixtures"
+description: "Built-in and custom fixtures, fixture scoping, and dependency injection in Playwright."
+section: "Fixtures"
+tags: ["playwright", "fixtures", "dependency-injection", "test-setup"]
+updatedAt: "2026-06-09T00:00:00.000Z"
+---
+
+## What are Fixtures
+
+Fixtures are Playwright's dependency injection system. They set up and tear down test resources, and can be scoped to a test, worker, or the entire run.
+
+```typescript
+// Built-in fixture usage
+test('example', async ({ page, request }) => {
+  await page.goto('/');
+  const res = await request.get('/api/status');
+});
+```
+
+## Built-in Fixtures
+
+| Fixture | Type | Description |
+|---|---|---|
+| `page` | Page | A fresh browser tab per test |
+| `browser` | Browser | The browser instance |
+| `context` | BrowserContext | Isolated browser session |
+| `request` | APIRequestContext | For API testing |
+| `browserName` | string | `'chromium'`, `'firefox'`, `'webkit'` |
+
+## Custom Fixtures
+
+Extend the `test` object to add your own fixtures:
+
+```typescript
+// fixtures.ts
+import { test as base } from '@playwright/test';
+import { LoginPage } from './pages/LoginPage';
+import { DashboardPage } from './pages/DashboardPage';
+
+type MyFixtures = {
+  loginPage: LoginPage;
+  dashboardPage: DashboardPage;
+  authenticatedPage: Page;
+};
+
+export const test = base.extend<MyFixtures>({
+  loginPage: async ({ page }, use) => {
+    await use(new LoginPage(page));
+  },
+
+  dashboardPage: async ({ page }, use) => {
+    await use(new DashboardPage(page));
+  },
+
+  authenticatedPage: async ({ page }, use) => {
+    // Setup: log in before test
+    await page.goto('/login');
+    await page.getByLabel('Email').fill('admin@test.com');
+    await page.getByLabel('Password').fill('secret');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.waitForURL('/dashboard');
+
+    await use(page); // hand control to the test
+
+    // Teardown: runs after test regardless of pass/fail
+    await page.goto('/logout');
+  },
+});
+
+export { expect } from '@playwright/test';
+```
+
+## Using Custom Fixtures
+
+```typescript
+// my.spec.ts
+import { test, expect } from './fixtures';
+
+test('dashboard loads', async ({ authenticatedPage }) => {
+  await expect(authenticatedPage.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+});
+```
+
+## Fixture Scoping
+
+```typescript
+// Test scope (default) — fresh for each test
+myFixture: async ({ page }, use) => { ... }
+
+// Worker scope — shared across tests in the same worker
+myFixture: [async ({}, use) => { ... }, { scope: 'worker' }]
+```
+
+**When to use worker scope:**
+- Expensive one-time setup (DB seeding, OAuth token)
+- Read-only shared resources
+
+## Factory Fixtures
+
+Return a factory function instead of an instance:
+
+```typescript
+makeUser: async ({ request }, use) => {
+  const created: string[] = [];
+
+  async function createUser(role: 'admin' | 'viewer') {
+    const res = await request.post('/api/users', { data: { role } });
+    const user = await res.json();
+    created.push(user.id);
+    return user;
+  }
+
+  await use(createUser); // test calls createUser(...)
+
+  // Cleanup all created users after test
+  for (const id of created) {
+    await request.delete(`/api/users/${id}`);
+  }
+},
+```
+
+## Dependency Between Fixtures
+
+Fixtures can depend on other fixtures:
+
+```typescript
+type Fixtures = {
+  token: string;
+  authPage: Page;
+};
+
+export const test = base.extend<Fixtures>({
+  token: async ({ request }, use) => {
+    const res = await request.post('/api/auth/login', {
+      data: { email: 'user@test.com', password: 'pass' }
+    });
+    const { token } = await res.json();
+    await use(token);
+  },
+
+  authPage: async ({ page, token }, use) => {
+    // token fixture is injected automatically
+    await page.context().addCookies([{ name: 'auth', value: token, domain: 'localhost', path: '/' }]);
+    await use(page);
+  },
+});
+```
+
+## Flashcards
+
+**Q: What is the difference between test-scoped and worker-scoped fixtures?**
+Test-scoped fixtures are created and destroyed for every test. Worker-scoped fixtures are shared across all tests running in the same worker — use for expensive, read-only setup.
+
+**Q: How does Playwright handle fixture teardown?**
+Everything after `await use(...)` in a fixture runs as teardown — after the test finishes, even if the test fails.
+
+**Q: Why use fixtures over `beforeEach`?**
+Fixtures are composable, lazy (only created if the test uses them), and support dependency injection. `beforeEach` hooks share mutable state and can't express dependencies between setup steps.
