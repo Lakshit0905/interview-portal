@@ -41,8 +41,8 @@ export function UploadZone({ onGenerate, generating, actionLabel = "Generate fla
       setText(extracted);
       setSourceLabel(fileName);
       void charCount;
-    } catch {
-      setError("Couldn't read that file — supported types are .txt, .md, and .pdf.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't read that file — supported types are .txt, .md, and .pdf.");
     } finally {
       setExtracting(false);
     }

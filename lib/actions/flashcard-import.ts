@@ -32,6 +32,9 @@ export async function extractDocumentText(formData: FormData): Promise<Extracted
     try {
       const result = await parser.getText();
       text = result.text;
+    } catch (err) {
+      console.error("PDF extraction failed:", err);
+      throw new Error("Couldn't parse that PDF — it may be scanned/image-based or corrupted.");
     } finally {
       await parser.destroy();
     }
