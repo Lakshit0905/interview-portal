@@ -15,7 +15,11 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-function TopicFilterBar({ active, onChange }: { active: FlashcardTopic | null; onChange: (t: FlashcardTopic | null) => void }) {
+export function TopicFilterBar({ active, onChange, topics = [...FLASHCARD_TOPICS] }: {
+  active: FlashcardTopic | null;
+  onChange: (t: FlashcardTopic | null) => void;
+  topics?: FlashcardTopic[];
+}) {
   return (
     <div className="flex flex-wrap gap-1.5">
       <button
@@ -27,7 +31,7 @@ function TopicFilterBar({ active, onChange }: { active: FlashcardTopic | null; o
       >
         All topics
       </button>
-      {FLASHCARD_TOPICS.map((t) => (
+      {topics.map((t) => (
         <button
           key={t}
           onClick={() => onChange(active === t ? null : t)}
@@ -61,6 +65,7 @@ function DeckCard({ card, onEdit, onDelete }: {
           <Badge variant="outline" className={cn(accent.text, accent.ring)}>{card.difficulty}</Badge>
           <Badge variant="muted">{card.topic}</Badge>
           {card.subtopic && <Badge variant="outline" className="text-muted-foreground">{card.subtopic}</Badge>}
+          {card.flashcardType && <Badge variant="outline" className="text-muted-foreground">{card.flashcardType}</Badge>}
           {due && <Badge className="bg-signal-amber/15 text-signal-amber ring-1 ring-signal-amber/30">Due</Badge>}
         </div>
         <DropdownMenu>
@@ -97,12 +102,12 @@ function DeckCard({ card, onEdit, onDelete }: {
   );
 }
 
-export function FlashcardDeck({ cards, onEdit, onDelete }: {
+export function FlashcardDeck({ cards, onEdit, onDelete, topic }: {
   cards: Flashcard[];
   onEdit: (c: Flashcard) => void;
   onDelete: (c: Flashcard) => void;
+  topic: FlashcardTopic | null;
 }) {
-  const [topic, setTopic] = React.useState<FlashcardTopic | null>(null);
   const filtered = React.useMemo(
     () => (topic ? cards.filter((c) => c.topic === topic) : cards),
     [cards, topic],
@@ -110,9 +115,6 @@ export function FlashcardDeck({ cards, onEdit, onDelete }: {
 
   return (
     <div>
-      <div className="mb-4">
-        <TopicFilterBar active={topic} onChange={setTopic} />
-      </div>
       {filtered.length === 0 ? (
         <EmptyState icon="Layers" title="No flashcards yet"
           description="Add cards manually, or generate them from notes, videos, and questions as you study." />

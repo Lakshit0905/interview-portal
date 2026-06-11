@@ -6,13 +6,15 @@ import {
   ChevronDown, ChevronRight, Check, X, Pencil, RotateCcw,
   Lightbulb, AlertTriangle, CalendarClock, Search, Loader2, Save,
 } from "lucide-react";
-import type { Difficulty, FlashcardGenerationResult, GeneratedFlashcard } from "@/types";
+import type { Difficulty, FlashcardGenerationResult, FlashcardTopic, GeneratedFlashcard } from "@/types";
+import { FLASHCARD_TOPICS } from "@/types";
 import { DIFFICULTY_ACCENT, ACCENT_CLASS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface ReviewCard extends GeneratedFlashcard {
   uid: string;
@@ -117,8 +119,18 @@ function CardTile({ card, onToggleInclude, onFlip, onEdit, onSave, onCancelEdit 
   onCancelEdit: () => void;
 }) {
   const accent = ACCENT_CLASS[DIFFICULTY_ACCENT[card.difficulty] ?? "slate"];
-  const [draft, setDraft] = React.useState({ question: card.question, answer: card.answer, difficulty: card.difficulty });
-  React.useEffect(() => { if (card.editing) setDraft({ question: card.question, answer: card.answer, difficulty: card.difficulty }); }, [card.editing, card.question, card.answer, card.difficulty]);
+  const [draft, setDraft] = React.useState({
+    question: card.question,
+    answer: card.answer,
+    topic: card.topic,
+    difficulty: card.difficulty,
+  });
+  React.useEffect(() => {
+    if (card.editing) {
+      setDraft({ question: card.question, answer: card.answer, topic: card.topic, difficulty: card.difficulty });
+    }
+  }, [card.editing, card.question, card.answer, card.topic, card.difficulty]);
+  const topicMode = FLASHCARD_TOPICS.includes(draft.topic as (typeof FLASHCARD_TOPICS)[number]) ? draft.topic : "custom";
 
   return (
     <motion.div
@@ -133,6 +145,7 @@ function CardTile({ card, onToggleInclude, onFlip, onEdit, onSave, onCancelEdit 
           <Badge variant="outline" className={cn(accent.text, accent.ring)}>{card.difficulty}</Badge>
           <Badge variant="muted">{card.topic}</Badge>
           {card.subtopic && <Badge variant="outline" className="text-muted-foreground">{card.subtopic}</Badge>}
+          {card.flashcardType && <Badge variant="outline" className="text-muted-foreground">{card.flashcardType}</Badge>}
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit} title="Edit card">
@@ -157,23 +170,45 @@ function CardTile({ card, onToggleInclude, onFlip, onEdit, onSave, onCancelEdit 
             <Textarea value={draft.question} onChange={(e) => setDraft((d) => ({ ...d, question: e.target.value }))} rows={2} className="text-sm" /></label>
           <label className="block"><span className="mono-label mb-1 block">Answer</span>
             <Textarea value={draft.answer} onChange={(e) => setDraft((d) => ({ ...d, answer: e.target.value }))} rows={3} className="text-sm" /></label>
-          <div className="flex items-center gap-1.5">
-            {DIFFICULTIES.map((d) => (
-              <button
-                key={d}
-                onClick={() => setDraft((draft_) => ({ ...draft_, difficulty: d }))}
-                className={cn(
-                  "rounded-md border px-2 py-0.5 font-mono text-[0.7rem] transition-colors",
-                  draft.difficulty === d ? `${ACCENT_CLASS[DIFFICULTY_ACCENT[d]].text} ${ACCENT_CLASS[DIFFICULTY_ACCENT[d]].ring} ring-1` : "border-border text-muted-foreground",
-                )}
-              >
-                {d}
-              </button>
-            ))}
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <label className="block"><span className="mono-label mb-1 block">Topic</span>
+              <Select value={topicMode} onValueChange={(value) => setDraft((d) => ({ ...d, topic: value === "custom" ? "" : value as FlashcardTopic }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {FLASHCARD_TOPICS.map((topic) => <SelectItem key={topic} value={topic}>{topic}</SelectItem>)}
+                  <SelectItem value="custom">Custom topic</SelectItem>
+                </SelectContent>
+              </Select>
+              {topicMode === "custom" && (
+                <Input
+                  value={draft.topic}
+                  onChange={(e) => setDraft((d) => ({ ...d, topic: e.target.value }))}
+                  placeholder="e.g. Selenium, Java, Mobile Testing"
+                  className="mt-2"
+                />
+              )}
+            </label>
+            <div>
+              <span className="mono-label mb-1 block">Difficulty</span>
+              <div className="flex items-center gap-1.5">
+                {DIFFICULTIES.map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setDraft((draft_) => ({ ...draft_, difficulty: d }))}
+                    className={cn(
+                      "rounded-md border px-2 py-0.5 font-mono text-[0.7rem] transition-colors",
+                      draft.difficulty === d ? `${ACCENT_CLASS[DIFFICULTY_ACCENT[d]].text} ${ACCENT_CLASS[DIFFICULTY_ACCENT[d]].ring} ring-1` : "border-border text-muted-foreground",
+                    )}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={onCancelEdit}>Cancel</Button>
-            <Button size="sm" onClick={() => onSave(draft)}>Save</Button>
+            <Button size="sm" onClick={() => onSave(draft)} disabled={!draft.topic.trim()}>Save</Button>
           </div>
         </div>
       ) : (

@@ -113,6 +113,66 @@
   .card-glow:hover::before { opacity: 1; }
 }
 
+/* ── Coding progress dashboard — glassmorphism + neon accent scope ─────────── */
+.coding-dashboard {
+  --neon-blue: 217 91% 60%;
+  --neon-purple: 270 91% 65%;
+  position: relative;
+}
+.coding-dashboard .glass-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid hsl(0 0% 100% / 0.08);
+  background: linear-gradient(160deg, hsl(0 0% 100% / 0.05), hsl(0 0% 100% / 0.015));
+  backdrop-filter: blur(16px);
+}
+.coding-dashboard .glass-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, hsl(var(--neon-blue) / 0.4), hsl(var(--neon-purple) / 0.4) 60%, transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.5;
+  transition: opacity 0.3s ease;
+}
+.coding-dashboard .glass-card:hover::before { opacity: 1; }
+.coding-dashboard .neon-text {
+  background: linear-gradient(135deg, hsl(var(--neon-blue)), hsl(var(--neon-purple)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.coding-dashboard .neon-ring {
+  box-shadow: 0 0 0 1px hsl(var(--neon-blue) / 0.25), 0 0 28px -10px hsl(var(--neon-purple) / 0.55);
+}
+.coding-dashboard .heatmap-cell {
+  border-radius: 3px;
+  transition: transform 0.15s ease;
+}
+.coding-dashboard .heatmap-cell:hover {
+  transform: scale(1.25);
+}
+@keyframes flame-flicker {
+  0%, 100% { transform: scale(1) rotate(-2deg); opacity: 1; }
+  50% { transform: scale(1.12) rotate(2deg); opacity: 0.85; }
+}
+.coding-dashboard .flame-icon {
+  animation: flame-flicker 1.6s ease-in-out infinite;
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(140px) rotate(360deg); opacity: 0; }
+}
+.coding-dashboard .confetti-piece {
+  animation: confetti-fall 1.1s ease-in forwards;
+}
+
 /* highlight.js — tuned for the dark IDE theme */
 .hljs { background: hsl(222 26% 8%); color: hsl(210 20% 88%); border-radius: var(--radius); }
 .prose pre { background: hsl(222 26% 8%) !important; border: 1px solid hsl(var(--border)); }

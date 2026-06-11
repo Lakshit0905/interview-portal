@@ -3,13 +3,33 @@
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, ChevronDown } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { HUB_SUBJECTS, SUBJECT_BANDS, type HubSubject, type SubjectBand } from "@/lib/data/knowledge-hub";
 import { SubjectCard, type SubjectStats } from "./subject-card";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils"; // Assuming cn is from lib/utils
 
 interface KnowledgeHubClientProps {
   statsMap: Record<string, SubjectStats>;
+}
+
+/** 
+ * Combined type to simplify rendering and avoid 
+ * repetitive lookups in the statsMap.
+ */
+type SubjectWithStats = HubSubject & { stats: SubjectStats };
+
+// Helper function for default stats, moved here to be accessible by useMemo hooks
+// It's good practice to define helper functions outside the component or memoize them.
+function defaultStats(s: HubSubject): SubjectStats {
+  return {
+    notes: 0,
+    flashcards: 0,
+    questions: 0,
+    topics: s.topics.length,
+    completion: 0,
+    revisionStatus: "new",
+    hasWeakAreas: false,
+  };
 }
 
 const BAND_ICONS: Record<SubjectBand, string> = {
@@ -27,33 +47,33 @@ export function KnowledgeHubClient({ statsMap }: KnowledgeHubClientProps) {
   const [activeBand, setActiveBand] = React.useState<SubjectBand | "All">("All");
   const [sortBy, setSortBy] = React.useState<"default" | "completion" | "cards" | "notes">("default");
 
-  const filtered = React.useMemo(() => {
-    let subjects: HubSubject[] = HUB_SUBJECTS;
+  // 1. Process subjects: Filter, Enrich with stats, and Sort
+  const processed = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    
+    let result = HUB_SUBJECTS.filter((s) => {
+      const matchesBand = activeBand === "All" || s.band === activeBand;
+      if (!matchesBand) return false;
 
-    if (activeBand !== "All") {
-      subjects = subjects.filter((s) => s.band === activeBand);
-    }
-
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      subjects = subjects.filter(
-        (s) =>
+      if (q) {
+        return (
           s.title.toLowerCase().includes(q) ||
           s.description.toLowerCase().includes(q) ||
           s.band.toLowerCase().includes(q) ||
-          s.topics.some((t) => t.title.toLowerCase().includes(q)),
-      );
-    }
+          s.topics.some((t) => t.title.toLowerCase().includes(q))
+        );
+      }
+      return true;
+    }).map((s) => ({
+      ...s,
+      stats: statsMap[s.slug] || defaultStats(s),
+    }));
 
-    if (sortBy === "completion") {
-      subjects = [...subjects].sort((a, b) => (statsMap[b.slug]?.completion ?? 0) - (statsMap[a.slug]?.completion ?? 0));
-    } else if (sortBy === "cards") {
-      subjects = [...subjects].sort((a, b) => (statsMap[b.slug]?.flashcards ?? 0) - (statsMap[a.slug]?.flashcards ?? 0));
-    } else if (sortBy === "notes") {
-      subjects = [...subjects].sort((a, b) => (statsMap[b.slug]?.notes ?? 0) - (statsMap[a.slug]?.notes ?? 0));
-    }
+    if (sortBy === "completion") result.sort((a, b) => b.stats.completion - a.stats.completion);
+    else if (sortBy === "cards") result.sort((a, b) => b.stats.flashcards - a.stats.flashcards);
+    else if (sortBy === "notes") result.sort((a, b) => b.stats.notes - a.stats.notes);
 
-    return subjects;
+    return result;
   }, [query, activeBand, sortBy, statsMap]);
 
   // Aggregate totals across all subjects
@@ -68,7 +88,28 @@ export function KnowledgeHubClient({ statsMap }: KnowledgeHubClientProps) {
     };
   }, [statsMap]);
 
-  const bandGroups: SubjectBand[] = [...new Set(filtered.map((s) => s.band))] as SubjectBand[];
+  // Pre-calculate counts for Band Chips to avoid O(n^2) in render
+  const bandCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    HUB_SUBJECTS.forEach(s => {
+      counts[s.band] = (counts[s.band] || 0) + 1;
+    });
+    return counts;
+  }, []);
+
+  const bandGroups = React.useMemo(() => {
+    if (activeBand !== "All") return [activeBand];
+    return SUBJECT_BANDS.filter(band => processed.some(s => s.band === band));
+  }, [processed, activeBand]);
+
+  // Helper to render a grid of subjects
+  const renderGrid = (items: SubjectWithStats[]) => (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {items.map((s, i) => (
+        <SubjectCard key={s.slug} subject={s} stats={s.stats} index={i} />
+      ))}
+    </div>
+  );
 
   return (
     <div>
@@ -126,41 +167,49 @@ export function KnowledgeHubClient({ statsMap }: KnowledgeHubClientProps) {
         </div>
 
         <span className="ml-auto font-mono text-xs text-muted-foreground">
-          {filtered.length} / {HUB_SUBJECTS.length}
+          {processed.length} / {HUB_SUBJECTS.length}
         </span>
       </div>
 
       {/* Band filter chips */}
       <div className="mb-6 flex flex-wrap gap-2">
         <BandChip band="All" active={activeBand === "All"} onClick={() => setActiveBand("All")} count={HUB_SUBJECTS.length} />
-        {SUBJECT_BANDS.map((band) => {
-          const n = HUB_SUBJECTS.filter((s) => s.band === band).length;
-          return (
-            <BandChip key={band} band={band} active={activeBand === band} onClick={() => setActiveBand(activeBand === band ? "All" : band)} count={n} emoji={BAND_ICONS[band]} />
-          );
-        })}
+        {SUBJECT_BANDS.map((band) => (
+          <BandChip 
+            key={band} 
+            band={band} 
+            active={activeBand === band} 
+            onClick={() => setActiveBand(activeBand === band ? "All" : band)} 
+            count={bandCounts[band] || 0} 
+            emoji={BAND_ICONS[band]} 
+          />
+        ))}
       </div>
 
       {/* Content */}
-      <AnimatePresence mode="popLayout">
-        {filtered.length === 0 ? (
+      <AnimatePresence mode="wait">
+        {processed.length === 0 ? (
           <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
             <p className="font-mono text-sm text-muted-foreground">No subjects match "{query}"</p>
             <button onClick={() => { setQuery(""); setActiveBand("All"); }} className="mt-2 font-mono text-xs text-primary hover:underline">Clear filters</button>
           </motion.div>
-        ) : activeBand !== "All" || query ? (
+        ) : 
+        activeBand !== "All" || query ? (
           // Flat grid when filtered
-          <motion.div key="flat" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filtered.map((s, i) => (
-              <SubjectCard key={s.slug} subject={s} stats={statsMap[s.slug] ?? defaultStats(s)} index={i} />
-            ))}
+          <motion.div
+            key="flat" 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          >
+            {renderGrid(processed)}
           </motion.div>
         ) : (
           // Band-grouped layout when unfiltered
           <motion.div key="grouped" className="space-y-10">
             {bandGroups.map((band) => {
-              const bandSubjects = filtered.filter((s) => s.band === band);
+              const bandSubjects = processed.filter((s) => s.band === band);
               if (!bandSubjects.length) return null;
               return (
                 <section key={band}>
@@ -170,11 +219,7 @@ export function KnowledgeHubClient({ statsMap }: KnowledgeHubClientProps) {
                     <div className="flex-1 border-t border-border/50" />
                     <span className="font-mono text-xs text-muted-foreground/60">{bandSubjects.length}</span>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {bandSubjects.map((s, i) => (
-                      <SubjectCard key={s.slug} subject={s} stats={statsMap[s.slug] ?? defaultStats(s)} index={i} />
-                    ))}
-                  </div>
+                  {renderGrid(bandSubjects)}
                 </section>
               );
             })}
@@ -201,16 +246,4 @@ function BandChip({ band, active, onClick, count, emoji }: { band: string; activ
       <span className={cn("ml-1 rounded-full px-2 py-0.5 text-[0.65rem] font-bold tabular-nums", active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>{count}</span>
     </button>
   );
-}
-
-function defaultStats(s: HubSubject): SubjectStats {
-  return {
-    notes: 0,
-    flashcards: 0,
-    questions: 0,
-    topics: s.topics.length,
-    completion: 0,
-    revisionStatus: "new",
-    hasWeakAreas: false,
-  };
 }

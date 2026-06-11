@@ -1,4 +1,4 @@
-import type { KnowledgeCategory } from "@/types";
+import type { Difficulty, KnowledgeCategory } from "@/types";
 
 export const KNOWLEDGE_CATEGORIES: KnowledgeCategory[] = [
   {
@@ -61,3 +61,15 @@ export const STATUS_ACCENT: Record<string, string> = {
   Applied: "slate", "Recruiter Screen": "blue", "Technical Round": "violet",
   "Final Round": "amber", Offer: "green", Rejected: "red",
 };
+
+// ── Coding progress dashboard ────────────────────────────────────────────────
+/** Estimated minutes spent per problem, by difficulty — used to derive "time spent coding". */
+export const DIFFICULTY_TIME_MINUTES: Record<Difficulty, number> = {
+  Easy: 15, Medium: 30, Hard: 45,
+};
+
+/** Problems solved in a topic at which "pattern mastery" reaches 100%. */
+export const PATTERN_MASTERY_TARGET = 8;
+
+/** Personal target for total problems solved, shown as a goal-progress badge. */
+export const CODING_GOAL_TOTAL = 150;

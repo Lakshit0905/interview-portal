@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import type { FlashcardGenerationResult, GeneratedFlashcard } from "@/types";
+import type { FlashcardGenerationResult, FlashcardTopic, GeneratedFlashcard } from "@/types";
 import { generateFlashcardsFromSource, importGeneratedFlashcards } from "@/lib/actions/flashcard-import";
 import { PageHeader } from "@/components/shared/page-header";
 import { AiStatus } from "@/components/coding/ai-status";
@@ -20,22 +20,24 @@ export function GenerateFlashcardsClient() {
   const [stage, setStage] = React.useState<Stage>("input");
   const [result, setResult] = React.useState<FlashcardGenerationResult | null>(null);
   const [sourceLabel, setSourceLabel] = React.useState("");
+  const [targetTopic, setTargetTopic] = React.useState<FlashcardTopic | null>(null);
   const [generating, setGenerating] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [savedCount, setSavedCount] = React.useState(0);
 
-  async function handleGenerate(text: string, label: string) {
+  async function handleGenerate(text: string, label: string, selectedTopic?: FlashcardTopic) {
     setError(null);
     setGenerating(true);
     try {
-      const generated = await generateFlashcardsFromSource({ text, sourceLabel: label });
+      const generated = await generateFlashcardsFromSource({ text, sourceLabel: label, targetTopic: selectedTopic });
       if (!generated.cards.length) {
         setError("Couldn't detect any flashcard-worthy material in that text — try pasting more context.");
         return;
       }
       setResult(generated);
       setSourceLabel(label);
+      setTargetTopic(selectedTopic ?? null);
       setStage("review");
     } catch {
       setError("Generation failed — please try again with a shorter excerpt.");
@@ -59,6 +61,7 @@ export function GenerateFlashcardsClient() {
   function reset() {
     setResult(null);
     setSourceLabel("");
+    setTargetTopic(null);
     setSavedCount(0);
     setError(null);
     setStage("input");
@@ -105,7 +108,9 @@ export function GenerateFlashcardsClient() {
           </div>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={reset}>Generate another deck</Button>
-            <Button onClick={() => router.push("/flashcards")}>Go to flashcards</Button>
+            <Button onClick={() => router.push(targetTopic ? `/flashcards?topic=${encodeURIComponent(targetTopic)}&tab=deck` : "/flashcards")}>
+              Go to flashcards
+            </Button>
           </div>
         </div>
       )}

@@ -3,6 +3,7 @@ import type {
   SystemDesign, Resume, Interview, Flashcard, LearningPath, RoadmapTopic,
   CompanyPrep, CompanyRound, CompanyFAQ, CompanyChecklistItem,
   VideoLesson, VideoConcept, VideoQA, VideoFlashcard, VideoMCQ,
+  Quiz, QuizAttempt, CodingActivityEntry,
 } from "@/types";
 
 const t = (d: string) => `2025-${d}T10:00:00.000Z`;
@@ -11,6 +12,8 @@ const DAY = 86_400_000;
 /** Relative-to-now ISO helper for seed data whose due dates must stay "live". */
 const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString();
 const ahead = (days: number) => new Date(Date.now() + days * DAY).toISOString();
+/** Relative-to-now "YYYY-MM-DD" date string, for activity-log entries. */
+const agoDate = (days: number) => ago(days).slice(0, 10);
 
 export const codingSeed: CodingProblem[] = [
   {
@@ -76,6 +79,20 @@ export const codingSeed: CodingProblem[] = [
     notes: "Explain why moving the taller wall can never improve the area.",
     revisitDate: null, createdAt: t("04-01"), updatedAt: t("05-05"),
   },
+];
+
+/** Recent practice activity (relative to "now") so the streak/heatmap/charts have data on first run. */
+export const codingActivitySeed: CodingActivityEntry[] = [
+  { id: "ca_0", date: agoDate(0), problemsSolved: 1, minutesSpent: 15, problemIds: ["cp_two_sum"], createdAt: ago(0), updatedAt: ago(0) },
+  { id: "ca_1", date: agoDate(1), problemsSolved: 2, minutesSpent: 45, problemIds: ["cp_max_subarray", "cp_valid_paren"], createdAt: ago(1), updatedAt: ago(1) },
+  { id: "ca_2", date: agoDate(2), problemsSolved: 1, minutesSpent: 30, problemIds: ["cp_two_ptr"], createdAt: ago(2), updatedAt: ago(2) },
+  { id: "ca_3", date: agoDate(3), problemsSolved: 1, minutesSpent: 30, problemIds: ["cp_max_subarray"], createdAt: ago(3), updatedAt: ago(3) },
+  { id: "ca_4", date: agoDate(4), problemsSolved: 1, minutesSpent: 15, problemIds: ["cp_valid_paren"], createdAt: ago(4), updatedAt: ago(4) },
+  { id: "ca_5", date: agoDate(7), problemsSolved: 1, minutesSpent: 30, problemIds: ["cp_two_ptr"], createdAt: ago(7), updatedAt: ago(7) },
+  { id: "ca_6", date: agoDate(9), problemsSolved: 2, minutesSpent: 45, problemIds: ["cp_two_sum", "cp_max_subarray"], createdAt: ago(9), updatedAt: ago(9) },
+  { id: "ca_7", date: agoDate(14), problemsSolved: 1, minutesSpent: 15, problemIds: ["cp_valid_paren"], createdAt: ago(14), updatedAt: ago(14) },
+  { id: "ca_8", date: agoDate(21), problemsSolved: 1, minutesSpent: 30, problemIds: ["cp_two_ptr"], createdAt: ago(21), updatedAt: ago(21) },
+  { id: "ca_9", date: agoDate(35), problemsSolved: 1, minutesSpent: 15, problemIds: ["cp_two_sum"], createdAt: ago(35), updatedAt: ago(35) },
 ];
 
 export const questionSeed: InterviewQuestion[] = [
@@ -1055,3 +1072,7 @@ A test is "flaky" if its status differs from both its previous and next run on t
     createdAt: ago(4), updatedAt: ago(4),
   },
 ];
+
+// ── AI Quiz Generator ────────────────────────────────────────────────────────
+export const quizSeed: Quiz[] = [];
+export const quizAttemptSeed: QuizAttempt[] = [];

@@ -3,11 +3,12 @@ import { JsonCollection } from "@/lib/repositories/json-store";
 import type {
   CodingProblem, InterviewQuestion, BehavioralStory,
   SystemDesign, Resume, Interview, Flashcard, LearningPath, CompanyPrep, VideoLesson,
+  Quiz, QuizAttempt, CodingActivityEntry,
 } from "@/types";
 import {
   codingSeed, questionSeed, behavioralSeed,
   systemDesignSeed, resumeSeed, interviewSeed, flashcardSeed, roadmapSeed, companyPrepSeed,
-  videoLessonSeed,
+  videoLessonSeed, quizSeed, quizAttemptSeed, codingActivitySeed,
 } from "./seeds";
 
 /**
@@ -27,4 +28,7 @@ export const db = {
   roadmap: new JsonCollection<LearningPath>("roadmap", roadmapSeed),
   companyPrep: new JsonCollection<CompanyPrep>("company-prep", companyPrepSeed),
   videos: new JsonCollection<VideoLesson>("video-lessons", videoLessonSeed),
+  quizzes: new JsonCollection<Quiz>("quizzes", quizSeed),
+  quizAttempts: new JsonCollection<QuizAttempt>("quiz-attempts", quizAttemptSeed),
+  codingActivity: new JsonCollection<CodingActivityEntry>("coding-activity", codingActivitySeed),
 };

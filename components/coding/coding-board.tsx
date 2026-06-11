@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus, Search, Check, RotateCcw, Circle, Pencil, Trash2,
-  ExternalLink, ChevronDown, Clock, Cpu,
+  Plus, Search, Check, RotateCcw, Circle, ChevronDown, Star, Workflow,
 } from "lucide-react";
 import type { CodingProblem, CodingStatus, Difficulty } from "@/types";
 import { CODING_TOPICS } from "@/types";
@@ -16,7 +16,6 @@ import {
 import { cn, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -25,6 +24,9 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { ConfettiBurst } from "@/components/coding/dashboard/confetti-burst";
+import { EnhancedProblemDetailTabs } from "@/components/coding/enhanced-problem-detail-tabs";
+import { EnhancedProblemForm, EMPTY_ENHANCED_PROBLEM } from "@/components/coding/enhanced-problem-form";
 
 const DIFFICULTIES: Difficulty[] = ["Easy", "Medium", "Hard"];
 const STATUS_META: Record<CodingStatus, { label: string; icon: typeof Check; accent: string }> = {
@@ -36,8 +38,7 @@ const STATUS_META: Record<CodingStatus, { label: string; icon: typeof Check; acc
 type Draft = Partial<CodingProblem>;
 
 const EMPTY: Draft = {
-  name: "", difficulty: "Medium", topic: "Arrays", status: "todo",
-  solution: "", timeComplexity: "", spaceComplexity: "", notes: "", url: "", revisitDate: "",
+  ...EMPTY_ENHANCED_PROBLEM,
 };
 
 export function CodingBoard({ initial }: { initial: CodingProblem[] }) {
@@ -50,10 +51,16 @@ export function CodingBoard({ initial }: { initial: CodingProblem[] }) {
   const [topic, setTopic] = React.useState<string>("all");
   const [difficulty, setDifficulty] = React.useState<string>("all");
   const [status, setStatus] = React.useState<string>("all");
+  const [pattern, setPattern] = React.useState<string>("all");
+  const [tag, setTag] = React.useState<string>("all");
+  const [favorite, setFavorite] = React.useState<string>("all");
+  const [confidence, setConfidence] = React.useState<string>("all");
+  const [revisionDue, setRevisionDue] = React.useState<string>("all");
   const [expanded, setExpanded] = React.useState<string | null>(focusId);
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<Draft>(EMPTY);
   const [pending, startTransition] = React.useTransition();
+  const [celebrate, setCelebrate] = React.useState(false);
 
   React.useEffect(() => setItems(initial), [initial]);
   React.useEffect(() => {
@@ -64,15 +71,29 @@ export function CodingBoard({ initial }: { initial: CodingProblem[] }) {
   }, [focusId]);
 
   const filtered = items.filter((p) => {
+    const today = new Date().toISOString().slice(0, 10);
     if (topic !== "all" && p.topic !== topic) return false;
     if (difficulty !== "all" && p.difficulty !== difficulty) return false;
     if (status !== "all" && p.status !== status) return false;
+    if (pattern !== "all" && (p.pattern || "Unpatterned") !== pattern) return false;
+    if (tag !== "all" && !(p.tags ?? []).includes(tag)) return false;
+    if (favorite !== "all" && Boolean(p.isFavorite) !== (favorite === "yes")) return false;
+    if (confidence !== "all" && (p.confidence ?? "Medium") !== confidence) return false;
+    if (revisionDue === "due" && (!p.nextRevisionAt || p.nextRevisionAt > today)) return false;
     if (query) {
-      const blob = `${p.name} ${p.topic} ${p.notes} ${p.solution}`.toLowerCase();
+      const blob = `${p.name} ${p.topic} ${p.notes} ${p.solution} ${p.code} ${p.pattern} ${(p.tags ?? []).join(" ")}`.toLowerCase();
       if (!blob.includes(query.toLowerCase())) return false;
     }
     return true;
   });
+  const patternOptions = React.useMemo(
+    () => [...new Set(items.map((p) => p.pattern?.trim() || "Unpatterned"))].sort(),
+    [items],
+  );
+  const tagOptions = React.useMemo(
+    () => [...new Set(items.flatMap((p) => p.tags ?? []))].sort(),
+    [items],
+  );
 
   const counts = {
     total: items.length,
@@ -82,12 +103,19 @@ export function CodingBoard({ initial }: { initial: CodingProblem[] }) {
 
   function cycleStatus(p: CodingProblem) {
     const next: CodingStatus = p.status === "solved" ? "revisit" : p.status === "revisit" ? "todo" : "solved";
+    if (next === "solved" && p.status !== "solved") {
+      const newSolvedCount = items.filter((x) => x.status === "solved").length + 1;
+      if (newSolvedCount % 5 === 0) {
+        setCelebrate(true);
+        setTimeout(() => setCelebrate(false), 1200);
+      }
+    }
     setItems((cur) => cur.map((x) => (x.id === p.id ? { ...x, status: next } : x)));
     startTransition(() => { void setCodingStatus(p.id, next); });
   }
 
-  function openCreate() { setDraft(EMPTY); setDialogOpen(true); }
-  function openEdit(p: CodingProblem) { setDraft(p); setDialogOpen(true); }
+  function openCreate() { setDraft({ ...EMPTY }); setDialogOpen(true); }
+  function openEdit(p: CodingProblem) { setDraft({ ...EMPTY, ...p, code: p.code ?? p.solution }); setDialogOpen(true); }
 
   function save() {
     const payload = {
@@ -96,8 +124,28 @@ export function CodingBoard({ initial }: { initial: CodingProblem[] }) {
       topic: draft.topic as (typeof CODING_TOPICS)[number],
       status: (draft.status as CodingStatus) ?? "todo",
       solution: draft.solution ?? "",
+      understanding: draft.understanding ?? "",
+      input: draft.input ?? "",
+      output: draft.output ?? "",
+      constraints: draft.constraints ?? "",
+      edgeCases: draft.edgeCases ?? "",
+      pattern: draft.pattern ?? "",
+      approach: draft.approach ?? "",
+      pseudocode: draft.pseudocode ?? "",
+      code: draft.code ?? draft.solution ?? "",
+      language: draft.language ?? "",
+      flowSteps: draft.flowSteps ?? [],
+      architectureBlocks: draft.architectureBlocks ?? {},
+      memoryNotes: draft.memoryNotes ?? {},
       timeComplexity: draft.timeComplexity ?? "",
       spaceComplexity: draft.spaceComplexity ?? "",
+      tags: draft.tags ?? [],
+      isFavorite: Boolean(draft.isFavorite),
+      confidence: draft.confidence,
+      lastRevisedAt: draft.lastRevisedAt || undefined,
+      nextRevisionAt: draft.nextRevisionAt || undefined,
+      revisionCount: draft.revisionCount ?? 0,
+      revisionNotes: draft.revisionNotes ?? [],
       notes: draft.notes ?? "",
       url: draft.url || undefined,
       revisitDate: draft.revisitDate || null,
@@ -122,6 +170,7 @@ export function CodingBoard({ initial }: { initial: CodingProblem[] }) {
 
   return (
     <div>
+      {celebrate && <ConfettiBurst />}
       {/* Toolbar */}
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2">
@@ -132,6 +181,11 @@ export function CodingBoard({ initial }: { initial: CodingProblem[] }) {
           <FilterSelect value={topic} onValueChange={setTopic} placeholder="Topic" options={["all", ...CODING_TOPICS]} />
           <FilterSelect value={difficulty} onValueChange={setDifficulty} placeholder="Difficulty" options={["all", ...DIFFICULTIES]} />
           <FilterSelect value={status} onValueChange={setStatus} placeholder="Status" options={["all", "todo", "solved", "revisit"]} />
+          <FilterSelect value={pattern} onValueChange={setPattern} placeholder="Pattern" options={["all", ...patternOptions]} />
+          <FilterSelect value={tag} onValueChange={setTag} placeholder="Tags" options={["all", ...tagOptions]} />
+          <FilterSelect value={favorite} onValueChange={setFavorite} placeholder="Favorite" options={["all", "yes", "no"]} />
+          <FilterSelect value={confidence} onValueChange={setConfidence} placeholder="Confidence" options={["all", "Low", "Medium", "High"]} />
+          <FilterSelect value={revisionDue} onValueChange={setRevisionDue} placeholder="Revision" options={["all", "due"]} />
         </div>
         <div className="flex items-center gap-3">
           <div className="hidden items-center gap-3 font-mono text-xs text-muted-foreground sm:flex">
@@ -139,6 +193,7 @@ export function CodingBoard({ initial }: { initial: CodingProblem[] }) {
             <span><span className="text-signal-amber">{counts.revisit}</span> revisit</span>
             <span>{counts.total} total</span>
           </div>
+          <Button variant="outline" size="sm" asChild><Link href="/coding/patterns"><Workflow className="h-4 w-4" /> Patterns</Link></Button>
           <Button onClick={openCreate} size="sm"><Plus className="h-4 w-4" /> Add problem</Button>
         </div>
       </div>
@@ -173,10 +228,14 @@ export function CodingBoard({ initial }: { initial: CodingProblem[] }) {
                   </button>
 
                   <button onClick={() => setExpanded(isOpen ? null : p.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                    <div className="min-w-0 flex-1">
-                      <p className={cn("truncate font-medium", p.status === "solved" && "text-muted-foreground")}>{p.name}</p>
+                      <div className="min-w-0 flex-1">
+                      <p className={cn("flex items-center gap-1.5 truncate font-medium", p.status === "solved" && "text-muted-foreground")}>
+                        {p.isFavorite && <Star className="h-3.5 w-3.5 shrink-0 fill-signal-amber text-signal-amber" />}
+                        <span className="truncate">{p.name}</span>
+                      </p>
                       <div className="mt-0.5 flex items-center gap-2 font-mono text-[0.65rem] text-muted-foreground">
                         <span>{p.topic}</span>
+                        {p.pattern && <span>· {p.pattern}</span>}
                         {p.revisitDate && p.status === "revisit" && (
                           <span className="text-signal-amber">· revisit {formatDate(p.revisitDate)}</span>
                         )}
@@ -198,33 +257,12 @@ export function CodingBoard({ initial }: { initial: CodingProblem[] }) {
                       transition={{ duration: 0.2 }}
                       className="overflow-hidden"
                     >
-                      <div className="space-y-4 border-t border-border p-4">
-                        <div className="flex flex-wrap items-center gap-4 font-mono text-xs text-muted-foreground">
-                          {p.timeComplexity && <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> time {p.timeComplexity}</span>}
-                          {p.spaceComplexity && <span className="flex items-center gap-1.5"><Cpu className="h-3.5 w-3.5" /> space {p.spaceComplexity}</span>}
-                          {p.url && (
-                            <a href={p.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-primary hover:underline">
-                              <ExternalLink className="h-3.5 w-3.5" /> source
-                            </a>
-                          )}
-                        </div>
-                        {p.notes && (
-                          <div>
-                            <p className="mono-label mb-1">notes</p>
-                            <p className="whitespace-pre-wrap text-sm text-foreground/90">{p.notes}</p>
-                          </div>
-                        )}
-                        {p.solution && (
-                          <div>
-                            <p className="mono-label mb-1">solution</p>
-                            <pre className="scrollbar-thin overflow-x-auto rounded-lg border border-border bg-background/60 p-3 font-mono text-xs text-foreground/90">{p.solution}</pre>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => openEdit(p)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
-                          <Button variant="ghost" size="sm" onClick={() => remove(p.id)} className="text-signal-red hover:text-signal-red"><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
-                        </div>
-                      </div>
+                      <EnhancedProblemDetailTabs
+                        problem={p}
+                        onEdit={openEdit}
+                        onDelete={remove}
+                        onRevised={(updated) => setItems((cur) => cur.map((x) => (x.id === updated.id ? updated : x)))}
+                      />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -268,60 +306,16 @@ function ProblemDialog({
   draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>;
   onSave: () => void; pending: boolean;
 }) {
-  const set = (patch: Draft) => setDraft((d) => ({ ...d, ...patch }));
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-5xl">
         <DialogHeader><DialogTitle>{draft.id ? "Edit problem" : "Add problem"}</DialogTitle></DialogHeader>
-        <div className="grid gap-4">
-          <Field label="Problem name">
-            <Input value={draft.name ?? ""} onChange={(e) => set({ name: e.target.value })} placeholder="Two Sum" />
-          </Field>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Field label="Topic">
-              <Select value={draft.topic} onValueChange={(v) => set({ topic: v as Draft["topic"] })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{CODING_TOPICS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-              </Select>
-            </Field>
-            <Field label="Difficulty">
-              <Select value={draft.difficulty} onValueChange={(v) => set({ difficulty: v as Difficulty })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{DIFFICULTIES.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
-              </Select>
-            </Field>
-            <Field label="Status">
-              <Select value={draft.status} onValueChange={(v) => set({ status: v as CodingStatus })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{(["todo", "solved", "revisit"] as CodingStatus[]).map((s) => <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>)}</SelectContent>
-              </Select>
-            </Field>
-            <Field label="Revisit date">
-              <Input type="date" value={draft.revisitDate ?? ""} onChange={(e) => set({ revisitDate: e.target.value })} />
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Time complexity"><Input value={draft.timeComplexity ?? ""} onChange={(e) => set({ timeComplexity: e.target.value })} placeholder="O(n)" /></Field>
-            <Field label="Space complexity"><Input value={draft.spaceComplexity ?? ""} onChange={(e) => set({ spaceComplexity: e.target.value })} placeholder="O(1)" /></Field>
-          </div>
-          <Field label="Source URL"><Input value={draft.url ?? ""} onChange={(e) => set({ url: e.target.value })} placeholder="https://leetcode.com/problems/…" /></Field>
-          <Field label="Notes"><Textarea value={draft.notes ?? ""} onChange={(e) => set({ notes: e.target.value })} placeholder="Pattern, intuition, edge cases…" /></Field>
-          <Field label="Solution"><Textarea value={draft.solution ?? ""} onChange={(e) => set({ solution: e.target.value })} placeholder="// your approach / code" className="min-h-[140px] font-mono text-xs" /></Field>
-        </div>
+        <EnhancedProblemForm draft={draft} onChange={setDraft} />
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={onSave} disabled={pending}>{pending ? "Saving…" : draft.id ? "Save changes" : "Add problem"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mono-label mb-1.5 block">{label}</span>
-      {children}
-    </label>
   );
 }

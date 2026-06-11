@@ -24,6 +24,51 @@ export interface CodingProblem {
   notes: string;
   url?: string;
   revisitDate?: string | null; // ISO date
+  understanding?: string;
+  input?: string;
+  output?: string;
+  constraints?: string;
+  edgeCases?: string;
+  pattern?: string;
+  approach?: string;
+  pseudocode?: string;
+  code?: string;
+  language?: string;
+  flowSteps?: string[];
+  architectureBlocks?: {
+    inputLayer?: string;
+    processingLayer?: string;
+    dataStructureLayer?: string;
+    decisionLayer?: string;
+    outputLayer?: string;
+  };
+  memoryNotes?: {
+    patternName?: string;
+    whenToUse?: string;
+    keyIdea?: string;
+    visualHook?: string;
+    commonMistake?: string;
+    similarProblems?: string;
+    revisionShortcut?: string;
+  };
+  tags?: string[];
+  isFavorite?: boolean;
+  confidence?: "Low" | "Medium" | "High";
+  lastRevisedAt?: string;
+  nextRevisionAt?: string;
+  revisionCount?: number;
+  revisionNotes?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One day's worth of coding-practice activity, used for the streak/heatmap dashboard. */
+export interface CodingActivityEntry {
+  id: string;
+  date: string; // "YYYY-MM-DD" (local date of activity)
+  problemsSolved: number;
+  minutesSpent: number;
+  problemIds: string[]; // problems solved that day
   createdAt: string;
   updatedAt: string;
 }
@@ -112,7 +157,13 @@ export const FLASHCARD_TOPICS = [
   "Playwright", "TypeScript", "SQL", "API", "AWS",
   "Docker", "CI/CD", "System Design", "Behavioral", "GenAI",
 ] as const;
-export type FlashcardTopic = (typeof FLASHCARD_TOPICS)[number];
+export type PresetFlashcardTopic = (typeof FLASHCARD_TOPICS)[number];
+export type FlashcardTopic = string;
+
+export const FLASHCARD_TYPES = [
+  "Definition", "Concept", "Scenario", "Interview Question", "Best Practice", "Common Mistake",
+] as const;
+export type FlashcardType = (typeof FLASHCARD_TYPES)[number];
 
 /** Days until next review at each step of the schedule, indexed by streak (0-based). */
 export const REVIEW_INTERVALS_DAYS = [1, 3, 7, 14, 30] as const;
@@ -126,6 +177,7 @@ export interface Flashcard {
   topic: FlashcardTopic;
   subtopic?: string; // free-form refinement, e.g. AI-detected subtopic within `topic`
   difficulty: Difficulty;
+  flashcardType?: FlashcardType;
   tags?: string[];
   sourceSnippet?: string; // excerpt of the source material the card was derived from
   source: FlashcardSource;
@@ -144,6 +196,7 @@ export type FlashcardGrade = "again" | "good";
 export interface GeneratedFlashcard {
   topic: FlashcardTopic;
   subtopic: string;
+  flashcardType: FlashcardType;
   question: string;
   answer: string;
   difficulty: Difficulty;
@@ -164,6 +217,70 @@ export interface FlashcardGenerationResult {
   weakAreas: string[];
   revisionPlan: string[];
   cards: GeneratedFlashcard[];
+}
+
+// ── AI Quiz Generator (document → MCQ / True-False / Scenario quiz) ─────────
+export const QUIZ_QUESTION_TYPES = ["Multiple Choice", "True/False", "Scenario"] as const;
+export type QuizQuestionType = (typeof QUIZ_QUESTION_TYPES)[number];
+
+export interface QuizQuestion {
+  id: string;
+  type: QuizQuestionType;
+  topic: FlashcardTopic;
+  subtopic?: string;
+  question: string;
+  options: string[]; // ["True", "False"] for the True/False type
+  correctIndex: number;
+  explanation: string;
+  difficulty: Difficulty;
+  tags?: string[];
+  sourceSnippet?: string;
+}
+
+export interface Quiz {
+  id: string;
+  title: string;
+  sourceLabel: string;
+  topics: string[];
+  questions: QuizQuestion[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuizAttempt {
+  id: string;
+  quizId: string;
+  quizTitle: string;
+  answers: { questionId: string; selectedIndex: number; correct: boolean }[];
+  score: number;
+  total: number;
+  percentage: number;
+  durationSeconds: number;
+  completedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Preview shape returned by the AI generator before a quiz is saved. */
+export interface GeneratedQuizQuestion {
+  topic: FlashcardTopic;
+  subtopic: string;
+  type: QuizQuestionType;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+  difficulty: Difficulty;
+  tags: string[];
+  sourceSnippet: string;
+}
+
+export interface QuizGenerationResult {
+  enabled: boolean;
+  summary: string;
+  topics: GeneratedTopicGroup[];
+  insights: string[];
+  questions: GeneratedQuizQuestion[];
 }
 
 // ── Learning Roadmap ─────────────────────────────────────────────────────────

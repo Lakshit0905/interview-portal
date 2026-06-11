@@ -33,6 +33,9 @@ export function TopicPageClient({ subject, topic, mdxNote }: TopicPageClientProp
   const a = ACCENT_CLASS[subject.accent] ?? ACCENT_CLASS.slate;
   const hasMdx = Boolean(mdxNote?.component);
   const [editorOpen, setEditorOpen] = React.useState(false);
+  const flashcardHref = subject.flashcardTopic
+    ? `/flashcards?topic=${encodeURIComponent(subject.flashcardTopic)}&tab=deck`
+    : "/flashcards";
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -69,6 +72,20 @@ export function TopicPageClient({ subject, topic, mdxNote }: TopicPageClientProp
             {hasMdx
               ? <><Pencil className="h-3.5 w-3.5" /> Edit notes</>
               : <><Plus className="h-3.5 w-3.5" /> Write notes</>}
+          </Button>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" asChild className="gap-2">
+            <Link href={flashcardHref}>
+              <FileText className="h-3.5 w-3.5" />
+              {subject.flashcardTopic ? `${subject.flashcardTopic} flashcards` : "Flashcards"}
+            </Link>
+          </Button>
+          <Button size="sm" variant="ghost" asChild className="gap-2">
+            <Link href="/flashcards/generate">
+              <Plus className="h-3.5 w-3.5" />
+              Generate cards
+            </Link>
           </Button>
         </div>
       </div>

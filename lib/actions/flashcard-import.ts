@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/data/db";
 import { generateFlashcardsFromContent } from "@/lib/ai/flashcard-generator";
-import { FLASHCARD_TOPICS } from "@/types";
+import { FLASHCARD_TYPES } from "@/types";
 import type { GeneratedFlashcard } from "@/types";
 
 const MAX_CHARS = 60_000;
@@ -46,17 +46,19 @@ export async function extractDocumentText(formData: FormData): Promise<Extracted
 const generateSchema = z.object({
   text: z.string().trim().min(40, "Paste or upload at least a few sentences of material"),
   sourceLabel: z.string().trim().min(1).default("Pasted material"),
+  targetTopic: z.string().trim().min(1).max(80).optional(),
 });
 
 /** Runs the AI/offline pipeline and returns a preview — nothing is persisted yet. */
 export async function generateFlashcardsFromSource(input: unknown) {
-  const { text, sourceLabel } = generateSchema.parse(input);
-  return generateFlashcardsFromContent(text.slice(0, MAX_CHARS), sourceLabel);
+  const { text, sourceLabel, targetTopic } = generateSchema.parse(input);
+  return generateFlashcardsFromContent(text.slice(0, MAX_CHARS), sourceLabel, targetTopic);
 }
 
 const cardSchema = z.object({
-  topic: z.enum(FLASHCARD_TOPICS),
+  topic: z.string().trim().min(1).max(80),
   subtopic: z.string().trim().optional(),
+  flashcardType: z.enum(FLASHCARD_TYPES).default("Concept"),
   question: z.string().trim().min(1),
   answer: z.string().trim().min(1),
   difficulty: z.enum(["Easy", "Medium", "Hard"]),
@@ -86,6 +88,7 @@ export async function importGeneratedFlashcards(input: unknown) {
       back: card.answer,
       topic: card.topic,
       subtopic: card.subtopic,
+      flashcardType: card.flashcardType,
       difficulty: card.difficulty,
       tags: card.tags,
       sourceSnippet: card.sourceSnippet,

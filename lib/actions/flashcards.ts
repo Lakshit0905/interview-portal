@@ -4,15 +4,14 @@ import { z } from "zod";
 import { db } from "@/lib/data/db";
 import { nowISO } from "@/lib/utils";
 import { nextReview } from "@/lib/srs";
-import { FLASHCARD_TOPICS } from "@/types";
 import type { FlashcardGrade } from "@/types";
 
 const schema = z.object({
   front: z.string().min(1),
   back: z.string().min(1),
-  topic: z.enum(FLASHCARD_TOPICS),
+  topic: z.string().trim().min(1).max(80),
   difficulty: z.enum(["Easy", "Medium", "Hard"]),
-  source: z.enum(["manual", "note", "video", "question"]).default("manual"),
+  source: z.enum(["manual", "note", "video", "question", "import"]).default("manual"),
   sourceRef: z.string().optional(),
 });
 
