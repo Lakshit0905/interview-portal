@@ -33,6 +33,15 @@ export async function extractDocumentText(formData: FormData): Promise<Extracted
       const { default: DOMMatrixPolyfill } = await import("dommatrix");
       globalThis.DOMMatrix = DOMMatrixPolyfill as unknown as typeof DOMMatrix;
     }
+    // pdfjs-dist normally spins up its worker via a dynamic `import(workerSrc)`,
+    // but that path isn't statically analyzable so Vercel's file tracer doesn't
+    // bundle pdf.worker.mjs, causing "Setting up fake worker failed". Pre-load
+    // the worker module ourselves (a static import path the tracer *can* see)
+    // and register it so pdfjs uses it directly instead of dynamic-importing.
+    if (!("pdfjsWorker" in globalThis)) {
+      const pdfjsWorker = await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+      (globalThis as unknown as { pdfjsWorker: unknown }).pdfjsWorker = pdfjsWorker;
+    }
     const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: buffer });
     try {
