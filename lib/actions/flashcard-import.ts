@@ -27,6 +27,12 @@ export async function extractDocumentText(formData: FormData): Promise<Extracted
   let text: string;
 
   if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+    // pdfjs-dist (used by pdf-parse) references `DOMMatrix` at module-load time,
+    // which doesn't exist in the Node runtime — polyfill it before importing.
+    if (typeof globalThis.DOMMatrix === "undefined") {
+      const { default: DOMMatrixPolyfill } = await import("dommatrix");
+      globalThis.DOMMatrix = DOMMatrixPolyfill as unknown as typeof DOMMatrix;
+    }
     const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: buffer });
     try {
