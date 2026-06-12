@@ -44,19 +44,39 @@ enum InterviewStatus {
 }
 
 model CodingProblem {
-  id              String       @id @default(cuid())
-  name            String
-  difficulty      Difficulty
-  topic           String
-  status          CodingStatus @default(todo)
-  solution        String       @default("")
-  timeComplexity  String       @default("")
-  spaceComplexity String       @default("")
-  notes           String       @default("")
-  url             String?
-  revisitDate     DateTime?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  id                 String       @id @default(cuid())
+  name               String
+  difficulty         Difficulty
+  topic              String
+  status             CodingStatus @default(todo)
+  solution           String       @default("")
+  timeComplexity     String       @default("")
+  spaceComplexity    String       @default("")
+  notes              String       @default("")
+  url                String?
+  revisitDate        DateTime?
+  understanding      String?
+  input              String?
+  output             String?
+  constraints        String?
+  edgeCases          String?
+  pattern            String?
+  approach           String?
+  pseudocode         String?
+  code               String?
+  language           String?
+  flowSteps          String[]     @default([])
+  architectureBlocks Json?
+  memoryNotes        Json?
+  tags               String[]     @default([])
+  isFavorite         Boolean?
+  confidence         String?
+  lastRevisedAt      DateTime?
+  nextRevisionAt     DateTime?
+  revisionCount      Int?
+  revisionNotes      String[]     @default([])
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 
   @@index([topic])
   @@index([difficulty])
@@ -117,18 +137,36 @@ model Resume {
 }
 
 model Interview {
-  id            String          @id @default(cuid())
-  company       String
-  position      String
-  recruiter     String?
-  interviewDate DateTime?
-  round         String          @default("")
-  status        InterviewStatus @default(Applied)
-  notes         String          @default("")
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id              String    @id @default(cuid())
+  company         String
+  position        String
+  location        String?
+  salaryRange     String?
+  interviewType   String?
+  recruiter       String?
+  interviewDate   DateTime?
+  round           String    @default("")
+  roundsCompleted Int?
+  roundsTotal     Int?
+  readinessScore  Int?
+  status          String    @default("Applied")
+  notes           String    @default("")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([status])
+}
+
+model CodingActivityEntry {
+  id             String   @id @default(cuid())
+  date           String
+  problemsSolved Int
+  minutesSpent   Int
+  problemIds     String[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([date])
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -398,22 +436,23 @@ enum FlashcardSource {
 }
 
 model Flashcard {
-  id             String          @id @default(uuid())
+  id             String     @id @default(uuid())
   front          String
   back           String
   topic          String // mirrors FlashcardTopic from types/index.ts (kept as String — see TopicNode for the optional hierarchy)
   subtopic       String?
   difficulty     Difficulty
-  tags           String[]
+  flashcardType  String?
+  tags           String[]   @default([])
   sourceSnippet  String?
-  source         FlashcardSource @default(manual)
+  source         String     @default("manual")
   sourceRef      String?
-  streak         Int             @default(0)
-  reviewCount    Int             @default(0)
+  streak         Int        @default(0)
+  reviewCount    Int        @default(0)
   lastReviewedAt DateTime?
-  dueAt          DateTime        @default(now())
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  dueAt          DateTime   @default(now())
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   // Additive traceability FK — see module comment above for why this lives here.
   sourceNodeId String?
@@ -424,6 +463,84 @@ model Flashcard {
   @@index([topic])
   @@index([dueAt])
   @@index([sourceNodeId])
+}
+
+model LearningPath {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  accent      String
+  icon        String
+  topics      Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CompanyPrep {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  industry    String
+  process     Json
+  focusAreas  String[]
+  faqs        Json
+  notes       String   @default("")
+  experiences String   @default("")
+  checklist   Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model VideoLesson {
+  id              String   @id @default(cuid())
+  url             String
+  title           String
+  channel         String
+  topic           String
+  durationMinutes Int
+  transcript      String   @default("")
+  summary         String   @default("")
+  notes           String   @default("")
+  concepts        Json
+  questions       Json
+  flashcards      Json
+  revisionNotes   String   @default("")
+  cheatSheet      String   @default("")
+  mcqs            Json
+  status          String   @default("ready")
+  generatedByAi   Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([topic])
+  @@index([status])
+}
+
+model Quiz {
+  id          String   @id @default(cuid())
+  title       String
+  sourceLabel String
+  topics      String[]
+  questions   Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model QuizAttempt {
+  id              String   @id @default(cuid())
+  quizId          String
+  quizTitle       String
+  answers         Json
+  score           Int
+  total           Int
+  percentage      Int
+  durationSeconds Int
+  completedAt     DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([quizId])
+  @@index([completedAt])
 }
 
 model FlashcardReview {

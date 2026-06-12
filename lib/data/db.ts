@@ -1,5 +1,7 @@
 import "server-only";
+import { prisma } from "@/lib/prisma";
 import { JsonCollection } from "@/lib/repositories/json-store";
+import { PrismaCollection } from "@/lib/repositories/prisma-store";
 import type {
   CodingProblem, InterviewQuestion, BehavioralStory,
   SystemDesign, Resume, Interview, Flashcard, LearningPath, CompanyPrep, VideoLesson,
@@ -11,13 +13,7 @@ import {
   videoLessonSeed, quizSeed, quizAttemptSeed, codingActivitySeed,
 } from "./seeds";
 
-/**
- * Central data access. Today every collection is a JSON file (DATA_DRIVER=json).
- * To migrate to PostgreSQL, implement the `Repository<T>` interface with Prisma
- * and swap the constructions below behind `process.env.DATA_DRIVER === "prisma"`.
- * Callers never change.
- */
-export const db = {
+const jsonDb = {
   coding: new JsonCollection<CodingProblem>("coding-problems", codingSeed),
   questions: new JsonCollection<InterviewQuestion>("questions", questionSeed),
   behavioral: new JsonCollection<BehavioralStory>("behavioral", behavioralSeed),
@@ -32,3 +28,25 @@ export const db = {
   quizAttempts: new JsonCollection<QuizAttempt>("quiz-attempts", quizAttemptSeed),
   codingActivity: new JsonCollection<CodingActivityEntry>("coding-activity", codingActivitySeed),
 };
+
+const prismaDb = {
+  coding: new PrismaCollection<CodingProblem>(prisma.codingProblem),
+  questions: new PrismaCollection<InterviewQuestion>(prisma.interviewQuestion),
+  behavioral: new PrismaCollection<BehavioralStory>(prisma.behavioralStory),
+  systemDesign: new PrismaCollection<SystemDesign>(prisma.systemDesign),
+  resumes: new PrismaCollection<Resume>(prisma.resume),
+  interviews: new PrismaCollection<Interview>(prisma.interview),
+  flashcards: new PrismaCollection<Flashcard>(prisma.flashcard),
+  roadmap: new PrismaCollection<LearningPath>(prisma.learningPath),
+  companyPrep: new PrismaCollection<CompanyPrep>(prisma.companyPrep),
+  videos: new PrismaCollection<VideoLesson>(prisma.videoLesson),
+  quizzes: new PrismaCollection<Quiz>(prisma.quiz),
+  quizAttempts: new PrismaCollection<QuizAttempt>(prisma.quizAttempt),
+  codingActivity: new PrismaCollection<CodingActivityEntry>(prisma.codingActivityEntry),
+};
+
+/**
+ * Central data access. DATA_DRIVER=json keeps the zero-infra local default.
+ * DATA_DRIVER=prisma switches every collection to Postgres via Prisma.
+ */
+export const db = process.env.DATA_DRIVER === "prisma" ? prismaDb : jsonDb;
